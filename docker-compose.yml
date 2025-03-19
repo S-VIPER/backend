@@ -4,7 +4,7 @@ services:
   # Сервис для MongoDB
   mongodb:
     image: mongo:6.0
-    container_name: sviper-dj-mongodb
+    container_name: sviper-mongodb
     ports:
       - "27017:27017"
     volumes:
@@ -13,13 +13,13 @@ services:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: example
     networks:
-      - sviper-dj-network
+      - sviper-network
 
   backend:
     build:
-      context: .
+      context: ./gin-api
       dockerfile: Dockerfile
-    container_name: sviper-dj-app
+    container_name: sviper-backend
     ports:
       - "8080:8080"
     environment:
@@ -27,7 +27,7 @@ services:
     depends_on:
       - mongodb
     networks:
-      - sviper-dj-network
+      - sviper-network
 
 # Настройка volumes для MongoDB
 volumes:

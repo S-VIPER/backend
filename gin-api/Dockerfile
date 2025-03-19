@@ -1,5 +1,5 @@
 # Используем официальный образ Go для сборки
-FROM golang:1.20-alpine AS builder
+FROM golang:1.24.1-alpine AS builder
 
 # Устанавливаем рабочую директорию
 WORKDIR /app
@@ -12,6 +12,8 @@ RUN go mod download
 
 # Копируем исходный код
 COPY . .
+
+RUN go mod tidy
 
 # Собираем приложение
 RUN CGO_ENABLED=0 GOOS=linux go build -o gin-api ./cmd/main.go
@@ -32,4 +34,4 @@ COPY ./config ./config
 EXPOSE 8080
 
 # Запускаем приложение
-CMD ["./sviper-dj"]
+CMD ["./gin-api"]
