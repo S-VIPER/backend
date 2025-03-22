@@ -4,16 +4,15 @@ import (
 	"net/http"
 
 	"github.com/S-VIPER/backend/gin-api/internal/domain"
-	"github.com/S-VIPER/backend/gin-api/internal/usecase"
 
 	"github.com/gin-gonic/gin"
 )
 
 type TrackHandler struct {
-	useCase *usecase.TrackUseCase
+	useCase TrackUseCaseInterface
 }
 
-func NewTrackHandler(useCase *usecase.TrackUseCase) *TrackHandler {
+func NewTrackHandler(useCase TrackUseCaseInterface) *TrackHandler {
 	return &TrackHandler{useCase: useCase}
 }
 
