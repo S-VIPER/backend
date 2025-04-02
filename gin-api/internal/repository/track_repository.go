@@ -41,3 +41,19 @@ func (r *TrackRepository) Delete(id string) error {
 	_, err := r.db.Collection("tracks").DeleteOne(context.TODO(), bson.M{"_id": id})
 	return err
 }
+
+// GetAllTracks retrieves all tracks from the database
+func (r *TrackRepository) GetAllTracks() ([]*domain.Track, error) {
+	var tracks []*domain.Track
+	cursor, err := r.db.Collection("tracks").Find(context.TODO(), bson.M{})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(context.TODO())
+
+	if err = cursor.All(context.TODO(), &tracks); err != nil {
+		return nil, err
+	}
+
+	return tracks, nil
+}

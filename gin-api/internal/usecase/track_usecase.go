@@ -28,3 +28,8 @@ func (uc *TrackUseCase) UpdateTrack(track *domain.Track) error {
 func (uc *TrackUseCase) DeleteTrack(id string) error {
 	return uc.repo.Delete(id)
 }
+
+// GetAllTracks retrieves all tracks from the repository
+func (uc *TrackUseCase) GetAllTracks() ([]*domain.Track, error) {
+	return uc.repo.GetAllTracks()
+}

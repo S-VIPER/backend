@@ -8,4 +8,5 @@ type TrackUseCaseInterface interface {
 	GetTrackByID(id string) (*domain.Track, error)
 	UpdateTrack(track *domain.Track) error
 	DeleteTrack(id string) error
+	GetAllTracks() ([]*domain.Track, error)
 }

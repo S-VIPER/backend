@@ -1,0 +1,273 @@
+{
+  "info": {
+    "name": "Sviper API",
+    "description": "API для управления треками и плейлистами",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Tracks",
+      "description": "API для управления треками",
+      "item": [
+        {
+          "name": "Get All Tracks",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost/api/v1/tracks",
+              "protocol": "http",
+              "host": ["localhost"],
+              "path": ["api", "v1", "tracks"]
+            },
+            "description": "Получить список всех треков"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Track By ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost/api/v1/tracks/track001",
+              "protocol": "http",
+              "host": ["localhost"],
+              "path": ["api", "v1", "tracks", "track001"]
+            },
+            "description": "Получить трек по ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Track",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "http://localhost/api/v1/tracks",
+              "protocol": "http",
+              "host": ["localhost"],
+              "path": ["api", "v1", "tracks"]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"track003\",\n  \"title\": \"New Track\",\n  \"artist\": \"New Artist\",\n  \"url\": \"http://localhost/tracks/new_artist/new_track.mp3\",\n  \"albumTitle\": \"New Album\",\n  \"albumArtUrl\": \"http://localhost/tracks/images/new_album.jpg\",\n  \"previewUrl\": \"http://localhost/tracks/previews/new_track_preview.mp3\",\n  \"genre\": [\"Rock\", \"Pop\"],\n  \"year\": 2023\n}"
+            },
+            "description": "Создать новый трек"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Track",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "http://localhost/api/v1/tracks/track001",
+              "protocol": "http",
+              "host": ["localhost"],
+              "path": ["api", "v1", "tracks", "track001"]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"track001\",\n  \"title\": \"Updated Track\",\n  \"artist\": \"arkadich\",\n  \"url\": \"http://localhost/tracks/arkadich/krovostok.mp3\",\n  \"albumTitle\": \"Updated Album\",\n  \"albumArtUrl\": \"http://localhost/tracks/images/queen_night_at_the_opera.jpg\",\n  \"previewUrl\": \"http://localhost/tracks/previews/bohemian_rhapsody_preview.mp3\",\n  \"genre\": [\"Electro punk\", \"Rave\"],\n  \"year\": 2024\n}"
+            },
+            "description": "Обновить существующий трек"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Track",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "http://localhost/api/v1/tracks/track001",
+              "protocol": "http",
+              "host": ["localhost"],
+              "path": ["api", "v1", "tracks", "track001"]
+            },
+            "description": "Удалить трек по ID"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Playlists",
+      "description": "API для управления плейлистами",
+      "item": [
+        {
+          "name": "Get Playlist By ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost/api/v1/playlists/playlist001",
+              "protocol": "http",
+              "host": ["localhost"],
+              "path": ["api", "v1", "playlists", "playlist001"]
+            },
+            "description": "Получить плейлист по ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Playlist",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "http://localhost/api/v1/playlists",
+              "protocol": "http",
+              "host": ["localhost"],
+              "path": ["api", "v1", "playlists"]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"playlist001\",\n  \"name\": \"My Awesome Playlist\",\n  \"description\": \"A collection of my favorite tracks\",\n  \"tracks\": []\n}"
+            },
+            "description": "Создать новый плейлист"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Playlist",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "http://localhost/api/v1/playlists/playlist001",
+              "protocol": "http",
+              "host": ["localhost"],
+              "path": ["api", "v1", "playlists", "playlist001"]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"playlist001\",\n  \"name\": \"Updated Playlist Name\",\n  \"description\": \"Updated description\",\n  \"tracks\": []\n}"
+            },
+            "description": "Обновить существующий плейлист"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Playlist",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "http://localhost/api/v1/playlists/playlist001",
+              "protocol": "http",
+              "host": ["localhost"],
+              "path": ["api", "v1", "playlists", "playlist001"]
+            },
+            "description": "Удалить плейлист по ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Add Track To Playlist",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "http://localhost/api/v1/playlists/playlist001/tracks",
+              "protocol": "http",
+              "host": ["localhost"],
+              "path": ["api", "v1", "playlists", "playlist001", "tracks"]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"trackId\": \"track001\"\n}"
+            },
+            "description": "Добавить трек в плейлист"
+          },
+          "response": []
+        },
+        {
+          "name": "Remove Track From Playlist",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "http://localhost/api/v1/playlists/playlist001/tracks/track001",
+              "protocol": "http",
+              "host": ["localhost"],
+              "path": ["api", "v1", "playlists", "playlist001", "tracks", "track001"]
+            },
+            "description": "Удалить трек из плейлиста"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Static Files",
+      "description": "Доступ к статическим файлам и медиафайлам",
+      "item": [
+        {
+          "name": "Get Track MP3",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost/tracks/arkadich/krovostok.mp3",
+              "protocol": "http",
+              "host": ["localhost"],
+              "path": ["tracks", "arkadich", "krovostok.mp3"]
+            },
+            "description": "Получить MP3 файл трека"
+          },
+          "response": []
+        },
+        {
+          "name": "Browse Tracks Directory",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost/tracks/",
+              "protocol": "http",
+              "host": ["localhost"],
+              "path": ["tracks", ""]
+            },
+            "description": "Просмотреть содержимое директории с треками (если включен автоиндекс)"
+          },
+          "response": []
+        },
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost/health",
+              "protocol": "http",
+              "host": ["localhost"],
+              "path": ["health"]
+            },
+            "description": "Проверить работоспособность сервера"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+} 

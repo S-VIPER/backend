@@ -32,7 +32,7 @@ func main() {
 	}
 	defer client.Disconnect(ctx)
 
-	db := client.Database("github.com/S-VIPER/backend/gin-api")
+	db := client.Database("sviper")
 
 	// Инициализация слоев
 	trackRepo := repository.NewTrackRepository(db)
@@ -47,6 +47,7 @@ func main() {
 
 	// Маршруты для треков
 	r.POST("/tracks", trackHandler.CreateTrack)
+	r.GET("/tracks", trackHandler.GetAllTracks)
 	r.GET("/tracks/:id", trackHandler.GetTrackByID)
 	r.PUT("/tracks/:id", trackHandler.UpdateTrack)
 	r.DELETE("/tracks/:id", trackHandler.DeleteTrack)

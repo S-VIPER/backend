@@ -66,3 +66,31 @@ func (h *TrackHandler) DeleteTrack(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Track deleted"})
 }
+
+// GetAllTracks godoc
+// @Summary Get all tracks
+// @Description Get all available tracks
+// @Tags tracks
+// @Accept json
+// @Produce json
+// @Success 200 {object} TracksResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /tracks [get]
+func (h *TrackHandler) GetAllTracks(c *gin.Context) {
+	tracks, err := h.useCase.GetAllTracks()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"tracks": tracks})
+}
+
+// Define response struct for documentation purposes
+type TracksResponse struct {
+	Tracks []*domain.Track `json:"tracks"`
+}
+
+type ErrorResponse struct {
+	Error string `json:"error"`
+}
