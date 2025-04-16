@@ -3,6 +3,7 @@ package http
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -41,6 +42,14 @@ func (m *MockTrackUseCase) DeleteTrack(id string) error {
 	return args.Error(0)
 }
 
+func (m *MockTrackUseCase) GetAllTracks() ([]*domain.Track, error) {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.Track), args.Error(1)
+}
+
 func TestCreateTrack(t *testing.T) {
 	// Setup
 	gin.SetMode(gin.TestMode)
@@ -49,10 +58,15 @@ func TestCreateTrack(t *testing.T) {
 
 	// Test data
 	track := domain.Track{
-		Title:    "Test Track",
-		BPM:      120,
-		Key:      "C",
-		FilePath: "http://example.com/track.mp3",
+		ID:          "track001",
+		Title:       "Test Track",
+		Artist:      "Test Artist",
+		URL:         "http://example.com/track.mp3",
+		AlbumTitle:  "Test Album",
+		AlbumArtURL: "http://example.com/album.jpg",
+		PreviewURL:  "http://example.com/preview.mp3",
+		Genre:       []string{"Rock", "Alternative"},
+		Year:        2023,
 	}
 	jsonData, _ := json.Marshal(track)
 
@@ -69,7 +83,7 @@ func TestCreateTrack(t *testing.T) {
 	handler.CreateTrack(c)
 
 	// Assertions
-	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, http.StatusCreated, w.Code)
 	mockUseCase.AssertExpectations(t)
 }
 
@@ -80,13 +94,17 @@ func TestGetTrackByID(t *testing.T) {
 	handler := NewTrackHandler(mockUseCase)
 
 	// Test data
-	trackID := "123"
+	trackID := "track001"
 	expectedTrack := &domain.Track{
-		ID:       123,
-		Title:    "Test Track",
-		BPM:      120,
-		Key:      "C",
-		FilePath: "http://example.com/track.mp3",
+		ID:          trackID,
+		Title:       "Test Track",
+		Artist:      "Test Artist",
+		URL:         "http://example.com/track.mp3",
+		AlbumTitle:  "Test Album",
+		AlbumArtURL: "http://example.com/album.jpg",
+		PreviewURL:  "http://example.com/preview.mp3",
+		Genre:       []string{"Rock", "Alternative"},
+		Year:        2023,
 	}
 
 	// Expectations
@@ -110,7 +128,77 @@ func TestGetTrackByID(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expectedTrack.ID, response.ID)
 	assert.Equal(t, expectedTrack.Title, response.Title)
-	assert.Equal(t, expectedTrack.BPM, response.BPM)
-	assert.Equal(t, expectedTrack.Key, response.Key)
-	assert.Equal(t, expectedTrack.FilePath, response.FilePath)
+	assert.Equal(t, expectedTrack.Artist, response.Artist)
+	assert.Equal(t, expectedTrack.URL, response.URL)
+	assert.Equal(t, expectedTrack.AlbumTitle, response.AlbumTitle)
+}
+
+func TestGetAllTracks(t *testing.T) {
+	// Setup
+	gin.SetMode(gin.TestMode)
+	mockUseCase := new(MockTrackUseCase)
+	handler := NewTrackHandler(mockUseCase)
+
+	// Test data
+	tracks := []*domain.Track{
+		{
+			ID:          "track001",
+			Title:       "Test Track 1",
+			Artist:      "Test Artist 1",
+			URL:         "http://example.com/track1.mp3",
+			AlbumTitle:  "Test Album 1",
+			AlbumArtURL: "http://example.com/album1.jpg",
+			PreviewURL:  "http://example.com/preview1.mp3",
+			Genre:       []string{"Rock", "Alternative"},
+			Year:        2023,
+		},
+		{
+			ID:          "track002",
+			Title:       "Test Track 2",
+			Artist:      "Test Artist 2",
+			URL:         "http://example.com/track2.mp3",
+			AlbumTitle:  "Test Album 2",
+			AlbumArtURL: "http://example.com/album2.jpg",
+			PreviewURL:  "http://example.com/preview2.mp3",
+			Genre:       []string{"Pop", "Electronic"},
+			Year:        2022,
+		},
+	}
+
+	// Expectations
+	mockUseCase.On("GetAllTracks").Return(tracks, nil)
+
+	// Create request
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request, _ = http.NewRequest("GET", "/tracks", nil)
+
+	// Execute
+	handler.GetAllTracks(c)
+
+	// Assertions
+	assert.Equal(t, http.StatusOK, w.Code)
+	mockUseCase.AssertExpectations(t)
+
+	var response struct {
+		Tracks []*domain.Track `json:"tracks"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Len(t, response.Tracks, 2)
+	assert.Equal(t, tracks[0].ID, response.Tracks[0].ID)
+	assert.Equal(t, tracks[1].ID, response.Tracks[1].ID)
+
+	// Test case with error
+	mockUseCase = new(MockTrackUseCase)
+	handler = NewTrackHandler(mockUseCase)
+	mockUseCase.On("GetAllTracks").Return(nil, errors.New("database error"))
+
+	w = httptest.NewRecorder()
+	c, _ = gin.CreateTestContext(w)
+	c.Request, _ = http.NewRequest("GET", "/tracks", nil)
+
+	handler.GetAllTracks(c)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	mockUseCase.AssertExpectations(t)
 }

@@ -6,10 +6,10 @@ import (
 )
 
 type TrackUseCase struct {
-	repo *repository.TrackRepository
+	repo repository.TrackRepositoryInterface
 }
 
-func NewTrackUseCase(repo *repository.TrackRepository) *TrackUseCase {
+func NewTrackUseCase(repo repository.TrackRepositoryInterface) *TrackUseCase {
 	return &TrackUseCase{repo: repo}
 }
 
