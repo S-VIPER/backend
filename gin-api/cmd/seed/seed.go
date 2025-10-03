@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -12,51 +13,60 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func main() {
-	// Get MongoDB URI from environment variable or use default
-	mongoURI := os.Getenv("MONGODB_URI")
-	if mongoURI == "" {
-		mongoURI = "mongodb://root:example@mongodb:27017"
-		log.Println("MONGODB_URI environment variable is not set. Using default:", mongoURI)
+func getEnv(key, def string) string {
+	if val := os.Getenv(key); val != "" {
+		return val
 	}
+	return def
+}
 
-	// Create a context with timeout
+func main() {
+	// --- Read env vars ---
+	objectStorage := getEnv("OBJECT_STORAGE_SOCKET", "http://localhost:9000")
+
+	mongoHost := getEnv("MONGO_HOST", "mongodb")
+	mongoPort := getEnv("MONGO_PORT", "27017")
+	mongoUser := getEnv("MONGO_USER", "root")
+	mongoPass := getEnv("MONGO_PASS", "example")
+	mongoDB := getEnv("MONGO_DB", "sviper")
+	mongoCollection := getEnv("MONGO_COLLECTION", "tracks")
+
+	mongoURI := getEnv("MONGODB_URI", fmt.Sprintf("mongodb://%s:%s@%s:%s", mongoUser, mongoPass, mongoHost, mongoPort))
+	log.Println("Connecting to MongoDB at:", mongoURI)
+
+	// --- Connect to MongoDB ---
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Connect to MongoDB
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoURI))
 	if err != nil {
 		log.Fatal("Failed to connect to MongoDB:", err)
 	}
 	defer client.Disconnect(ctx)
 
-	// Check the connection
-	err = client.Ping(ctx, nil)
-	if err != nil {
+	if err := client.Ping(ctx, nil); err != nil {
 		log.Fatal("Failed to ping MongoDB:", err)
 	}
 	log.Println("Connected to MongoDB!")
 
-	// Get database reference
-	db := client.Database("sviper")
-	collection := db.Collection("tracks")
+	db := client.Database(mongoDB)
+	collection := db.Collection(mongoCollection)
 
-	// Drop existing tracks if any
+	// --- Reset collection ---
 	if err := collection.Drop(ctx); err != nil {
 		log.Println("Warning: Failed to drop collection:", err)
 	}
 
-	// Sample tracks data
+	// --- Seed sample data ---
 	tracks := []interface{}{
 		domain.Track{
 			ID:          "track001",
 			Title:       "krovostok",
 			Artist:      "arkadich",
-			URL:         "http://192.168.0.164/tracks/arkadich/krovostok.mp3",
+			URL:         fmt.Sprintf("%s/tracks/arkadich/krovostok.mp3", objectStorage),
 			AlbumTitle:  "",
-			AlbumArtURL: "http://192.168.0.164/tracks/images/queen_night_at_the_opera.jpg",
-			PreviewURL:  "http://192.168.0.164/tracks/previews/bohemian_rhapsody_preview.mp3",
+			AlbumArtURL: fmt.Sprintf("%s/tracks/images/queen_night_at_the_opera.jpg", objectStorage),
+			PreviewURL:  fmt.Sprintf("%s/tracks/previews/bohemian_rhapsody_preview.mp3", objectStorage),
 			Genre:       []string{"Electro punk", "Rave"},
 			Year:        2024,
 		},
@@ -64,16 +74,15 @@ func main() {
 			ID:          "track002",
 			Title:       "sosat",
 			Artist:      "arkadich",
-			URL:         "http://192.168.0.164/tracks/arkadich/sosat.mp3",
+			URL:         fmt.Sprintf("%s/tracks/arkadich/sosat.mp3", objectStorage),
 			AlbumTitle:  "",
-			AlbumArtURL: "http://192.168.0.164/tracks/images/queen_night_at_the_opera.jpg",
-			PreviewURL:  "http://192.168.0.164/tracks/previews/bohemian_rhapsody_preview.mp3",
+			AlbumArtURL: fmt.Sprintf("%s/tracks/images/queen_night_at_the_opera.jpg", objectStorage),
+			PreviewURL:  fmt.Sprintf("%s/tracks/previews/bohemian_rhapsody_preview.mp3", objectStorage),
 			Genre:       []string{"Electro punk", "Rave"},
 			Year:        2024,
 		},
 	}
 
-	// Insert tracks
 	result, err := collection.InsertMany(ctx, tracks)
 	if err != nil {
 		log.Fatal("Failed to insert tracks:", err)
@@ -81,7 +90,7 @@ func main() {
 
 	log.Printf("Successfully inserted %d tracks with IDs: %v", len(result.InsertedIDs), result.InsertedIDs)
 
-	// Print all inserted tracks for verification
+	// --- Verification ---
 	cursor, err := collection.Find(ctx, bson.M{})
 	if err != nil {
 		log.Fatal("Failed to retrieve tracks:", err)
