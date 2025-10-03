@@ -7,6 +7,9 @@ on:
 
 jobs:
   test-and-build:
+    name: Run Tests, Build and push -- backend & seeder
+    runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
