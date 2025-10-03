@@ -50,35 +50,25 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.MARK_TOKEN }}
 
-      - name: Build backend Docker image
+      - name: Build and push backend Docker image
         uses: docker/build-push-action@v4
         with:
           context: ./gin-api
           file: ./gin-api/Dockerfile
-          push: false
-          tags: sviper-dj-backend:latest
+          push: true
+          tags: ghcr.io/s-viper/sviper-dj-backend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build seeder Docker image
+      - name: Build and push seeder Docker image
         uses: docker/build-push-action@v4
         with:
           context: ./gin-api
           file: ./gin-api/Dockerfile.seeder
-          push: false
-          tags: sviper-dj-seeder:latest
+          push: true
+          tags: ghcr.io/s-viper/sviper-dj-seeder:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Push backend Docker image
-        run: |
-          docker tag sviper-dj-backend:latest ghcr.io/s-viper/sviper-dj-backend:latest
-          docker push ghcr.io/s-viper/sviper-dj-backend:latest
-
-      - name: Push seeder Docker image
-        run: |
-          docker tag sviper-dj-seeder:latest ghcr.io/s-viper/sviper-dj-seeder:latest
-          docker push ghcr.io/s-viper/sviper-dj-seeder:latest
 
       - name: Create Release
         id: create_release
