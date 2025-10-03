@@ -22,9 +22,13 @@ jobs:
           cd gin-api
           go test -v ./...
 
-      - name: Build Docker image
+      - name: Build backend Docker image
         run: |
-          docker build -t sviper-dj-backend:${{ github.sha }} -f gin-api/Dockerfile .
+          docker build -t sviper-dj-backend:${{ github.sha }} -f gin-api/Dockerfile gin-api
+
+      - name: Build seeder Docker image
+        run: |
+          docker build -t sviper-dj-seeder:${{ github.sha }} -f gin-api/Dockerfile.seeder gin-api
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -33,10 +37,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.MARK_TOKEN }}
 
-      - name: Push Docker image
+      - name: Push backend Docker image
         run: |
           docker tag sviper-dj-backend:${{ github.sha }} ghcr.io/${{ github.repository }}/sviper-dj-backend:${{ github.sha }}
           docker push ghcr.io/${{ github.repository }}/sviper-dj-backend:${{ github.sha }}
+
+      - name: Push seeder Docker image
+        run: |
+          docker tag sviper-dj-seeder:${{ github.sha }} ghcr.io/${{ github.repository }}/sviper-dj-seeder:${{ github.sha }}
+          docker push ghcr.io/${{ github.repository }}/sviper-dj-seeder:${{ github.sha }}
 
       - name: Create Release
         id: create_release
