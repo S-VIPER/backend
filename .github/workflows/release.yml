@@ -4,11 +4,13 @@ on:
   push:
     branches:
       - release
+
 permissions:
   contents: write
   packages: write
   attestations: write
   id-token: write
+
 jobs:
   test:
     name: Run tests
@@ -39,7 +41,7 @@ jobs:
     needs: test
     permissions:
       contents: write
-      packages: write 
+      packages: write
 
     steps:
       - name: Checkout code
@@ -54,6 +56,15 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Define backend image names
+        run: |
+          VERSION_TAG=v${{ github.run_number }}
+          IMAGE_BASE=ghcr.io/${{ github.repository_owner }}/backend
+          IMAGE_TAGS="${IMAGE_BASE}:${VERSION_TAG},${IMAGE_BASE}:latest"
+          echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
+          echo "IMAGE_BASE_BACKEND=$IMAGE_BASE" >> $GITHUB_ENV
+          echo "IMAGE_TAGS_BACKEND=$IMAGE_TAGS" >> $GITHUB_ENV
 
       - name: Extract backend metadata
         id: meta-backend
@@ -62,7 +73,6 @@ jobs:
           images: ghcr.io/${{ github.repository_owner }}/backend
           tags: |
             type=ref,event=branch
-            type=ref,event=pr
             type=sha,format=short
 
       - name: Build and push backend image
@@ -71,10 +81,26 @@ jobs:
           context: ./gin-api
           file: ./gin-api/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
-          tags:  ${{ steps.meta-backend.outputs.tags }}
+          tags: ${{ env.IMAGE_TAGS_BACKEND }}
           labels: ${{ steps.meta-backend.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Create backend images file
+        run: |
+          echo "Backend images:" > backend-images.txt
+          IFS=',' read -ra TAGS <<< "${IMAGE_TAGS_BACKEND}"
+          for t in "${TAGS[@]}"; do
+            echo "- $t" >> backend-images.txt
+          done
+        env:
+          IMAGE_TAGS_BACKEND: ${{ env.IMAGE_TAGS_BACKEND }}
+
+      - name: Upload backend images artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-images
+          path: backend-images.txt
 
   build-seeder:
     name: Build & Push Seeder
@@ -82,7 +108,7 @@ jobs:
     needs: test
     permissions:
       contents: write
-      packages: write 
+      packages: write
 
     steps:
       - name: Checkout code
@@ -98,6 +124,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Define seeder image names
+        run: |
+          VERSION_TAG=v${{ github.run_number }}
+          IMAGE_BASE=ghcr.io/${{ github.repository_owner }}/seeder
+          IMAGE_TAGS="${IMAGE_BASE}:${VERSION_TAG},${IMAGE_BASE}:latest"
+          echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
+          echo "IMAGE_BASE_SEEDER=$IMAGE_BASE" >> $GITHUB_ENV
+          echo "IMAGE_TAGS_SEEDER=$IMAGE_TAGS" >> $GITHUB_ENV
+
       - name: Extract seeder metadata
         id: meta-seeder
         uses: docker/metadata-action@v4
@@ -105,7 +140,6 @@ jobs:
           images: ghcr.io/${{ github.repository_owner }}/seeder
           tags: |
             type=ref,event=branch
-            type=ref,event=pr
             type=sha,format=short
 
       - name: Build and push seeder image
@@ -114,24 +148,85 @@ jobs:
           context: ./gin-api
           file: ./gin-api/Dockerfile.seeder
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta-seeder.outputs.tags }}
+          tags: ${{ env.IMAGE_TAGS_SEEDER }}
           labels: ${{ steps.meta-seeder.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Create seeder images file
+        run: |
+          echo "Seeder images:" > seeder-images.txt
+          IFS=',' read -ra TAGS <<< "${IMAGE_TAGS_SEEDER}"
+          for t in "${TAGS[@]}"; do
+            echo "- $t" >> seeder-images.txt
+          done
+        env:
+          IMAGE_TAGS_SEEDER: ${{ env.IMAGE_TAGS_SEEDER }}
+
+      - name: Upload seeder images artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: seeder-images
+          path: seeder-images.txt
 
   create_release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     needs: [test, build-backend, build-seeder]
+
     steps:
-      - name: Create Release
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download backend images artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-images
+          path: .
+
+      - name: Download seeder images artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: seeder-images
+          path: .
+
+      - name: Build release body (release_body.md)
+        run: |
+          echo "# Release v${{ github.run_number }}" > release_body.md
+          echo "" >> release_body.md
+          echo "This release contains the following Docker images published to GHCR:" >> release_body.md
+          echo "" >> release_body.md
+          if [ -f backend-images.txt ]; then
+            echo "## Backend" >> release_body.md
+            cat backend-images.txt >> release_body.md
+            echo "" >> release_body.md
+          fi
+          if [ -f seeder-images.txt ]; then
+            echo "## Seeder" >> release_body.md
+            cat seeder-images.txt >> release_body.md
+            echo "" >> release_body.md
+          fi
+          echo "Release created by CI workflow." >> release_body.md
+
+      - name: Create Release (and attach image files)
         id: create_release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ github.run_number }}
           name: Release v${{ github.run_number }}
+          body_path: release_body.md
+          files: |
+            backend-images.txt
+            seeder-images.txt
           draft: false
           prerelease: false
-          generate_release_notes: true
+          generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Show release info
+        run: |
+          echo "Release created. Action outputs:"
+          echo "id: ${{ steps.create_release.outputs.id }}"
+          echo "url: ${{ steps.create_release.outputs.url || 'n/a' }}"
+          echo "upload_url: ${{ steps.create_release.outputs.upload_url || 'n/a' }}"
