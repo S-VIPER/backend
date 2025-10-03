@@ -72,13 +72,13 @@ jobs:
 
       - name: Push backend Docker image
         run: |
-          docker tag sviper-dj-backend:latest ghcr.io/${{ github.repository_owner }}/sviper-dj-backend:latest
-          docker push ghcr.io/${{ github.repository_owner }}/sviper-dj-backend:latest
+          docker tag sviper-dj-backend:latest ghcr.io/${{ github.repository_owner.toLowerCase() }}/sviper-dj-backend:latest
+          docker push ghcr.io/${{ github.repository_owner.toLowerCase() }}/sviper-dj-backend:latest
 
       - name: Push seeder Docker image
         run: |
-          docker tag sviper-dj-seeder:latest ghcr.io/${{ github.repository_owner }}/sviper-dj-seeder:latest
-          docker push ghcr.io/${{ github.repository_owner }}/sviper-dj-seeder:latest
+          docker tag sviper-dj-seeder:latest ghcr.io/${{ github.repository_owner.toLowerCase() }}/sviper-dj-seeder:latest
+          docker push ghcr.io/${{ github.repository_owner.toLowerCase() }}/sviper-dj-seeder:latest
 
       - name: Create Release
         id: create_release
