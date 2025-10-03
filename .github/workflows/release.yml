@@ -15,7 +15,6 @@ jobs:
   test:
     name: Run tests
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -57,20 +56,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Define backend image names
+      - name: Define backend image names (lowercase owner)
         run: |
+          # Сделаем owner в lowercase (без зависимости от toLower())
+          OWNER_LOWER=$(printf "%s" "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
           VERSION_TAG=v${{ github.run_number }}
-          IMAGE_BASE=ghcr.io/${{ github.repository_owner }}/backend
-          IMAGE_TAGS="${IMAGE_BASE}:${VERSION_TAG},${IMAGE_BASE}:latest"
+          IMAGE_REPO_BACKEND="ghcr.io/${OWNER_LOWER}/backend"
+          IMAGE_TAGS_BACKEND="${IMAGE_REPO_BACKEND}:${VERSION_TAG},${IMAGE_REPO_BACKEND}:latest"
           echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
-          echo "IMAGE_BASE_BACKEND=$IMAGE_BASE" >> $GITHUB_ENV
-          echo "IMAGE_TAGS_BACKEND=$IMAGE_TAGS" >> $GITHUB_ENV
+          echo "IMAGE_REPO_BACKEND=$IMAGE_REPO_BACKEND" >> $GITHUB_ENV
+          echo "IMAGE_TAGS_BACKEND=$IMAGE_TAGS_BACKEND" >> $GITHUB_ENV
 
       - name: Extract backend metadata
         id: meta-backend
         uses: docker/metadata-action@v4
         with:
-          images: ghcr.io/${{ github.repository_owner }}/backend
+          images: ${{ env.IMAGE_REPO_BACKEND }}
           tags: |
             type=ref,event=branch
             type=sha,format=short
@@ -124,20 +125,21 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Define seeder image names
+      - name: Define seeder image names (lowercase owner)
         run: |
+          OWNER_LOWER=$(printf "%s" "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
           VERSION_TAG=v${{ github.run_number }}
-          IMAGE_BASE=ghcr.io/${{ github.repository_owner }}/seeder
-          IMAGE_TAGS="${IMAGE_BASE}:${VERSION_TAG},${IMAGE_BASE}:latest"
+          IMAGE_REPO_SEEDER="ghcr.io/${OWNER_LOWER}/seeder"
+          IMAGE_TAGS_SEEDER="${IMAGE_REPO_SEEDER}:${VERSION_TAG},${IMAGE_REPO_SEEDER}:latest"
           echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
-          echo "IMAGE_BASE_SEEDER=$IMAGE_BASE" >> $GITHUB_ENV
-          echo "IMAGE_TAGS_SEEDER=$IMAGE_TAGS" >> $GITHUB_ENV
+          echo "IMAGE_REPO_SEEDER=$IMAGE_REPO_SEEDER" >> $GITHUB_ENV
+          echo "IMAGE_TAGS_SEEDER=$IMAGE_TAGS_SEEDER" >> $GITHUB_ENV
 
       - name: Extract seeder metadata
         id: meta-seeder
         uses: docker/metadata-action@v4
         with:
-          images: ghcr.io/${{ github.repository_owner }}/seeder
+          images: ${{ env.IMAGE_REPO_SEEDER }}
           tags: |
             type=ref,event=branch
             type=sha,format=short
@@ -173,7 +175,6 @@ jobs:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     needs: [test, build-backend, build-seeder]
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
