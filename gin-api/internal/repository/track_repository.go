@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/S-VIPER/backend/gin-api/internal/domain"
 	"go.mongodb.org/mongo-driver/bson"
@@ -23,7 +24,8 @@ func (r *TrackRepository) Create(track *domain.Track) error {
 
 func (r *TrackRepository) GetByID(id string) (*domain.Track, error) {
 	var track domain.Track
-	err := r.db.Collection("tracks").FindOne(context.TODO(), bson.M{"id": id}).Decode(&track)
+	ctx := context.Background()
+	err := r.db.Collection("tracks").FindOne(ctx, bson.M{"id": id}).Decode(&track)
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +33,7 @@ func (r *TrackRepository) GetByID(id string) (*domain.Track, error) {
 }
 
 func (r *TrackRepository) Update(track *domain.Track) error {
-	filter := bson.M{"_id": track.ID}
+	filter := bson.M{"id": track.ID}
 	update := bson.M{"$set": track}
 	ctx := context.Background()
 	_, err := r.db.Collection("tracks").UpdateOne(ctx, filter, update)
@@ -40,8 +42,14 @@ func (r *TrackRepository) Update(track *domain.Track) error {
 
 func (r *TrackRepository) Delete(id string) error {
 	ctx := context.Background()
-	_, err := r.db.Collection("tracks").DeleteOne(ctx, bson.M{"id": id})
-	return err
+	res, err := r.db.Collection("tracks").DeleteOne(ctx, bson.M{"id": id})
+	if err != nil {
+		return err
+	}
+	if res.DeletedCount == 0 {
+		return fmt.Errorf("track not found")
+	}
+	return nil
 }
 
 // GetAllTracks retrieves all tracks from the database

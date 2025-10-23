@@ -1,6 +1,8 @@
 package usecase
 
 import (
+	"fmt"
+
 	"github.com/S-VIPER/backend/gin-api/internal/domain"
 	"github.com/S-VIPER/backend/gin-api/internal/repository"
 )
@@ -26,7 +28,14 @@ func (uc *TrackUseCase) UpdateTrack(track *domain.Track) error {
 }
 
 func (uc *TrackUseCase) DeleteTrack(id string) error {
-	return uc.repo.Delete(id)
+	err := uc.repo.Delete(id)
+	if err != nil {
+		if err.Error() == "track not found" {
+			return fmt.Errorf("Track not found")
+		}
+		return err
+	}
+	return nil
 }
 
 // GetAllTracks retrieves all tracks from the repository
