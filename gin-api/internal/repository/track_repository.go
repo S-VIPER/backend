@@ -23,7 +23,7 @@ func (r *TrackRepository) Create(track *domain.Track) error {
 
 func (r *TrackRepository) GetByID(id string) (*domain.Track, error) {
 	var track domain.Track
-	err := r.db.Collection("tracks").FindOne(context.TODO(), bson.M{"_id": id}).Decode(&track)
+	err := r.db.Collection("tracks").FindOne(context.TODO(), bson.M{"id": id}).Decode(&track)
 	if err != nil {
 		return nil, err
 	}
@@ -33,12 +33,14 @@ func (r *TrackRepository) GetByID(id string) (*domain.Track, error) {
 func (r *TrackRepository) Update(track *domain.Track) error {
 	filter := bson.M{"_id": track.ID}
 	update := bson.M{"$set": track}
-	_, err := r.db.Collection("tracks").UpdateOne(context.TODO(), filter, update)
+	ctx := context.Background()
+	_, err := r.db.Collection("tracks").UpdateOne(ctx, filter, update)
 	return err
 }
 
 func (r *TrackRepository) Delete(id string) error {
-	_, err := r.db.Collection("tracks").DeleteOne(context.TODO(), bson.M{"_id": id})
+	ctx := context.Background()
+	_, err := r.db.Collection("tracks").DeleteOne(ctx, bson.M{"id": id})
 	return err
 }
 
