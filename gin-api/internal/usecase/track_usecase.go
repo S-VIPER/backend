@@ -5,6 +5,7 @@ import (
 
 	"github.com/S-VIPER/backend/gin-api/internal/domain"
 	"github.com/S-VIPER/backend/gin-api/internal/repository"
+	"github.com/google/uuid"
 )
 
 type TrackUseCase struct {
@@ -16,6 +17,7 @@ func NewTrackUseCase(repo repository.TrackRepositoryInterface) *TrackUseCase {
 }
 
 func (uc *TrackUseCase) CreateTrack(track *domain.Track) error {
+	track.ID = uuid.New().String()
 	return uc.repo.Create(track)
 }
 

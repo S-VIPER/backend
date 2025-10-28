@@ -3,6 +3,7 @@ package usecase
 import (
 	"github.com/S-VIPER/backend/gin-api/internal/domain"
 	"github.com/S-VIPER/backend/gin-api/internal/repository"
+	"github.com/google/uuid"
 )
 
 type PlaylistUseCase struct {
@@ -15,11 +16,16 @@ func NewPlaylistUseCase(playlistRepo *repository.PlaylistRepository, trackRepo *
 }
 
 func (uc *PlaylistUseCase) CreatePlaylist(playlist *domain.Playlist) error {
+	playlist.ID = uuid.New().String()
 	return uc.playlistRepo.Create(playlist)
 }
 
 func (uc *PlaylistUseCase) GetPlaylistByID(id string) (*domain.Playlist, error) {
 	return uc.playlistRepo.GetByID(id)
+}
+
+func (uc *PlaylistUseCase) GetAllPlaylists() ([]domain.Playlist, error) {
+	return uc.playlistRepo.GetAll()
 }
 
 func (uc *PlaylistUseCase) UpdatePlaylist(playlist *domain.Playlist) error {
@@ -31,7 +37,6 @@ func (uc *PlaylistUseCase) DeletePlaylist(id string) error {
 }
 
 func (uc *PlaylistUseCase) AddTrackToPlaylist(playlistID, trackID string) error {
-	// Проверяем, существует ли трек
 	_, err := uc.trackRepo.GetByID(trackID)
 	if err != nil {
 		return err

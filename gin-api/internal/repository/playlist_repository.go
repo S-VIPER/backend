@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/S-VIPER/backend/gin-api/internal/domain"
-
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -32,6 +31,29 @@ func (r *PlaylistRepository) GetByID(id string) (*domain.Playlist, error) {
 	var playlist domain.Playlist
 	err = r.collection.FindOne(context.Background(), bson.M{"_id": objID}).Decode(&playlist)
 	return &playlist, err
+}
+
+func (r *PlaylistRepository) GetAll() ([]domain.Playlist, error) {
+	cursor, err := r.collection.Find(context.Background(), bson.M{})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(context.Background())
+
+	var playlists []domain.Playlist
+	for cursor.Next(context.Background()) {
+		var playlist domain.Playlist
+		if err := cursor.Decode(&playlist); err != nil {
+			return nil, err
+		}
+		playlists = append(playlists, playlist)
+	}
+
+	if err := cursor.Err(); err != nil {
+		return nil, err
+	}
+
+	return playlists, nil
 }
 
 func (r *PlaylistRepository) Update(playlist *domain.Playlist) error {

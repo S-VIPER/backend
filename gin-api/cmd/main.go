@@ -59,6 +59,7 @@ func main() {
 	r.DELETE("/tracks/:id", trackHandler.DeleteTrack)
 
 	// Маршруты для плейлистов
+	r.GET("/playlists", playlistHandler.GetAllPlaylists)
 	r.POST("/playlists", playlistHandler.CreatePlaylist)
 	r.GET("/playlists/:id", playlistHandler.GetPlaylistByID)
 	r.PUT("/playlists/:id", playlistHandler.UpdatePlaylist)

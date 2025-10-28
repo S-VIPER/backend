@@ -17,6 +17,16 @@ func NewPlaylistHandler(useCase *usecase.PlaylistUseCase) *PlaylistHandler {
 	return &PlaylistHandler{useCase: useCase}
 }
 
+func (h *PlaylistHandler) GetAllPlaylists(c *gin.Context) {
+	playlists, err := h.useCase.GetAllPlaylists()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, playlists)
+}
+
 func (h *PlaylistHandler) CreatePlaylist(c *gin.Context) {
 	var playlist domain.Playlist
 	if err := c.ShouldBindJSON(&playlist); err != nil {

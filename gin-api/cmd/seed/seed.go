@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/S-VIPER/backend/gin-api/internal/domain"
@@ -57,32 +60,61 @@ func main() {
 		log.Println("Warning: Failed to drop collection:", err)
 	}
 
-	// --- Seed sample data ---
-	tracks := []interface{}{
-		domain.Track{
-			ID:          "track001",
-			Title:       "krovostok",
-			Artist:      "arkadich",
-			URL:         fmt.Sprintf("%s/tracks/arkadich/krovostok.mp3", objectStorage),
-			AlbumTitle:  "",
-			AlbumArtURL: fmt.Sprintf("%s/tracks/images/queen_night_at_the_opera.jpg", objectStorage),
-			PreviewURL:  fmt.Sprintf("%s/tracks/previews/bohemian_rhapsody_preview.mp3", objectStorage),
-			Genre:       []string{"Electro punk", "Rave"},
-			Year:        2024,
-		},
-		domain.Track{
-			ID:          "track002",
-			Title:       "sosat",
-			Artist:      "arkadich",
-			URL:         fmt.Sprintf("%s/tracks/arkadich/sosat.mp3", objectStorage),
-			AlbumTitle:  "",
-			AlbumArtURL: fmt.Sprintf("%s/tracks/images/queen_night_at_the_opera.jpg", objectStorage),
-			PreviewURL:  fmt.Sprintf("%s/tracks/previews/bohemian_rhapsody_preview.mp3", objectStorage),
-			Genre:       []string{"Electro punk", "Rave"},
-			Year:        2024,
-		},
+	// --- Tracks list ---
+	files := []string{
+		"ANYACT - Grajdane.mp3",
+		"Any Act - Lakad Matatag.mp3",
+		"Artv - Alcohol Kvlt.mp3",
+		"BERSERKRR - Karma.mp3",
+		"Hermeth - Lone Wolf.mp3",
+		"Locked Club - Chevo Chevo.mp3",
+		"LOCKED CLUB - heart for whores.mp3",
+		"LOCKED CLUB, Hofmannita - LAPKI.mp3",
+		"Locked Club - It's My Rave.mp3",
+		"PORNO - VES.mp3",
+		"S.A.Y. - Marrakech.mp3",
+		"Steals - im smoke.mp3",
+		"Stelmakh - Naidy.mp3",
+		"Trust True - EIR.mp3",
+		"UNDERGROOVER - Merch.mp3",
+		"UNDERGROOVER - Stock.mp3",
+		"Unit Boy - ASAP.mp3",
+		"WASTA - 100AB.mp3",
 	}
 
+	defaultArt := fmt.Sprintf("%s/tracks/images/default.jpg", objectStorage)
+	defaultPreview := ""
+	year := 2024
+
+	var tracks []interface{}
+	for i, fname := range files {
+		base := strings.TrimSuffix(fname, filepath.Ext(fname))
+		artist := "unknown"
+		title := base
+
+		if strings.Contains(base, " - ") {
+			parts := strings.SplitN(base, " - ", 2)
+			artist = strings.TrimSpace(parts[0])
+			title = strings.TrimSpace(parts[1])
+		}
+
+		fileURL := fmt.Sprintf("%s/tracks/%s", objectStorage, url.PathEscape(fname))
+
+		t := domain.Track{
+			ID:          fmt.Sprintf("track%03d", i+1),
+			Title:       title,
+			Artist:      artist,
+			URL:         fileURL,
+			AlbumTitle:  "",
+			AlbumArtURL: defaultArt,
+			PreviewURL:  defaultPreview,
+			Genre:       []string{},
+			Year:        year,
+		}
+		tracks = append(tracks, t)
+	}
+
+	// --- Insert into MongoDB ---
 	result, err := collection.InsertMany(ctx, tracks)
 	if err != nil {
 		log.Fatal("Failed to insert tracks:", err)
@@ -104,6 +136,6 @@ func main() {
 
 	log.Println("Tracks in database:")
 	for _, track := range retrievedTracks {
-		log.Printf("- %s by %s (%d)", track.Title, track.Artist, track.Year)
+		log.Printf("- %s by %s (%d) — %s", track.Title, track.Artist, track.Year, track.URL)
 	}
 }
