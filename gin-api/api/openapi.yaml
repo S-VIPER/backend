@@ -1,0 +1,598 @@
+openapi: 3.0.3
+
+info:
+  title: S-VIPER API
+  description: REST API for S-VIPER music service
+  version: 1.0.0
+
+servers:
+  - url: /api/v1
+    description: API v1
+
+tags:
+  - name: Playlists
+    description: Playlist operations
+  - name: Tracks
+    description: Track operations
+
+paths:
+  /tracks:
+    post:
+      tags:
+        - Tracks
+      operationId: createTrack
+      summary: Create track
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTrackRequest'
+      responses:
+        '201':
+          description: Track created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrackResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      tags:
+        - Tracks
+      operationId: getAllTracks
+      summary: Get all tracks
+      responses:
+        '200':
+          description: Tracks
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrackListResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /tracks/{trackId}:
+    parameters:
+      - $ref: '#/components/parameters/TrackId'
+
+    get:
+      tags:
+        - Tracks
+      operationId: getTrackByID
+      summary: Get track by ID
+      responses:
+        '200':
+          description: Track
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrackResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      tags:
+        - Tracks
+      operationId: updateTrack
+      summary: Update track
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTrackRequest'
+      responses:
+        '200':
+          description: Track updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrackResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Tracks
+      operationId: deleteTrack
+      summary: Delete track
+      responses:
+        '204':
+          description: Track deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /playlists:
+    post:
+      tags:
+        - Playlists
+      operationId: createPlaylist
+      summary: Create playlist
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePlaylistRequest'
+      responses:
+        '201':
+          description: Playlist created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaylistResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /playlists/{playlistId}:
+
+    parameters:
+      - $ref: '#/components/parameters/PlaylistId'
+
+    get:
+      tags:
+        - Playlists
+      operationId: getPlaylistByID
+      summary: Get playlist by ID
+      responses:
+        '200':
+          description: Playlist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaylistResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      tags:
+        - Playlists
+      operationId: updatePlaylist
+      summary: Update playlist
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePlaylistRequest'
+      responses:
+        '200':
+          description: Playlist updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaylistResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Playlists
+      operationId: deletePlaylist
+      summary: Delete playlist
+      responses:
+        '204':
+          description: Playlist deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /playlists/{playlistId}/tracks/{trackId}:
+
+    parameters:
+      - $ref: '#/components/parameters/PlaylistId'
+      - $ref: '#/components/parameters/TrackId'
+
+    post:
+      tags:
+        - Playlists
+      operationId: addTrackToPlaylist
+      summary: Add track to playlist
+      responses:
+        '200':
+          description: Track added to playlist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Playlists
+      operationId: removeTrackFromPlaylist
+      summary: Remove track from playlist
+      responses:
+        '204':
+          description: Track removed from playlist
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+
+  parameters:
+
+    PlaylistId:
+      name: playlistId
+      in: path
+      required: true
+      description: Playlist ObjectID in hexadecimal format
+      schema:
+        type: string
+        minLength: 24
+        maxLength: 24
+        pattern: '^[0-9a-fA-F]{24}$'
+
+    TrackId:
+      name: trackId
+      in: path
+      required: true
+      description: Track identifier
+      schema:
+        type: string
+        minLength: 1
+
+  schemas:
+    Track:
+      type: object
+      required:
+        - id
+        - title
+        - artist
+        - url
+        - albumTitle
+        - albumArtURL
+        - previewURL
+        - genre
+        - year
+      properties:
+        id:
+          type: string
+          example: "track-001"
+
+        title:
+          type: string
+          minLength: 1
+          maxLength: 300
+          example: "Song Title"
+
+        artist:
+          type: string
+          minLength: 1
+          maxLength: 300
+          example: "Artist"
+
+        url:
+          type: string
+          format: uri
+          example: "https://example.com/song.mp3"
+
+        albumTitle:
+          type: string
+          example: "Album"
+
+        albumArtURL:
+          type: string
+          format: uri
+          example: "https://example.com/album.jpg"
+
+        previewURL:
+          type: string
+          format: uri
+          example: "https://example.com/preview.mp3"
+
+        genre:
+          type: array
+          items:
+            type: string
+          example:
+            - Rock
+            - Alternative
+
+        year:
+          type: integer
+          minimum: 1900
+          maximum: 2100
+          example: 2025
+
+    CreateTrackRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - title
+        - artist
+        - url
+        - albumTitle
+        - albumArtURL
+        - previewURL
+        - genre
+        - year
+      properties:
+        id:
+          type: string
+          minLength: 1
+          example: "track-001"
+
+        title:
+          type: string
+          minLength: 1
+          maxLength: 300
+
+        artist:
+          type: string
+          minLength: 1
+          maxLength: 300
+
+        url:
+          type: string
+          format: uri
+
+        albumTitle:
+          type: string
+
+        albumArtURL:
+          type: string
+          format: uri
+
+        previewURL:
+          type: string
+          format: uri
+
+        genre:
+          type: array
+          items:
+            type: string
+
+        year:
+          type: integer
+          minimum: 1900
+          maximum: 2100
+
+    UpdateTrackRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - title
+        - artist
+        - url
+        - albumTitle
+        - albumArtURL
+        - previewURL
+        - genre
+        - year
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 300
+
+        artist:
+          type: string
+          minLength: 1
+          maxLength: 300
+
+        url:
+          type: string
+          format: uri
+
+        albumTitle:
+          type: string
+
+        albumArtURL:
+          type: string
+          format: uri
+
+        previewURL:
+          type: string
+          format: uri
+
+        genre:
+          type: array
+          items:
+            type: string
+
+        year:
+          type: integer
+          minimum: 1900
+          maximum: 2100
+
+    TrackResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Track'
+
+    TrackListResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Track'
+
+    Playlist:
+      type: object
+      required:
+        - id
+        - name
+        - tracks
+      properties:
+        id:
+          type: string
+          description: Playlist identifier
+          example: "66c8b7e2b0e9c6a8c9a2d123"
+
+        name:
+          type: string
+          description: Playlist name
+          minLength: 1
+          maxLength: 200
+          example: "My Workout"
+
+        tracks:
+          type: array
+          description: Track identifiers contained in the playlist
+          items:
+            type: string
+          example:
+            - "track-001"
+            - "track-002"
+
+    CreatePlaylistRequest:
+      type: object
+      required:
+        - name
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          example: "My Workout"
+
+    UpdatePlaylistRequest:
+      type: object
+      required:
+        - name
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          example: "Updated Workout"
+
+    PlaylistResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Playlist'
+
+    MessageResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: object
+          required:
+            - message
+          properties:
+            message:
+              type: string
+              example: "track added to playlist"
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              enum:
+                - INVALID_REQUEST
+                - INVALID_PLAYLIST
+                - INVALID_PLAYLIST_ID
+                - INVALID_PLAYLIST_NAME
+                - PLAYLIST_NOT_FOUND
+                - TRACK_NOT_FOUND
+                - PLAYLIST_ALREADY_EXISTS
+                - INTERNAL_ERROR
+                - INVALID_TRACK
+                - INVALID_TRACK_ID
+                - INVALID_TRACK_TITLE
+                - INVALID_TRACK_ARTIST
+                - INVALID_TRACK_URL
+                - INVALID_TRACK_YEAR
+                - TRACK_NOT_FOUND
+                - TRACK_ALREADY_EXISTS
+              example: PLAYLIST_NOT_FOUND
+
+            message:
+              type: string
+              example: playlist not found
+
+  responses:
+
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
