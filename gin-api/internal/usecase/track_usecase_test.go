@@ -1,186 +1,191 @@
 package usecase
 
 import (
-	"errors"
+	"context"
 	"testing"
 
 	"github.com/S-VIPER/backend/gin-api/internal/domain"
 	"github.com/S-VIPER/backend/gin-api/internal/repository"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+
+	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
+
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/modules/mongodb"
+
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// MockTrackRepository - мок для репозитория
-type MockTrackRepository struct {
-	mock.Mock
+type TrackUseCaseIntegrationTestSuite struct {
+	suite.Suite
+
+	ctx       context.Context
+	container *mongodb.MongoDBContainer
+
+	client *mongo.Client
+	db     *mongo.Database
+
+	repository *repository.TrackRepository
+	useCase    *TrackUseCase
 }
 
-// Проверка, что MockTrackRepository реализует интерфейс TrackRepositoryInterface
-var _ repository.TrackRepositoryInterface = (*MockTrackRepository)(nil)
+func (s *TrackUseCaseIntegrationTestSuite) SetupSuite() {
+	s.ctx = context.Background()
 
-func (m *MockTrackRepository) Create(track *domain.Track) error {
-	args := m.Called(track)
-	return args.Error(0)
+	container, err := mongodb.Run(
+		s.ctx,
+		"mongo:8",
+	)
+	require.NoError(s.T(), err)
+
+	s.container = container
+
+	connectionString, err := container.ConnectionString(s.ctx)
+	require.NoError(s.T(), err)
+
+	client, err := mongo.Connect(
+		s.ctx,
+		options.Client().ApplyURI(connectionString),
+	)
+	require.NoError(s.T(), err)
+
+	err = client.Ping(s.ctx, nil)
+	require.NoError(s.T(), err)
+
+	s.client = client
+	s.db = client.Database("track_usecase_integration_test")
+
+	s.repository = repository.NewTrackRepository(s.db)
+	s.useCase = NewTrackUseCase(s.repository)
 }
 
-func (m *MockTrackRepository) GetByID(id string) (*domain.Track, error) {
-	args := m.Called(id)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*domain.Track), args.Error(1)
-}
-
-func (m *MockTrackRepository) Update(track *domain.Track) error {
-	args := m.Called(track)
-	return args.Error(0)
-}
-
-func (m *MockTrackRepository) Delete(id string) error {
-	args := m.Called(id)
-	return args.Error(0)
-}
-
-func (m *MockTrackRepository) GetAllTracks() ([]*domain.Track, error) {
-	args := m.Called()
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]*domain.Track), args.Error(1)
-}
-
-func TestCreateTrack(t *testing.T) {
-	mockRepo := new(MockTrackRepository)
-	uc := NewTrackUseCase(mockRepo)
-
-	track := &domain.Track{
-		ID:     "track001",
-		Title:  "Test Track",
-		Artist: "Test Artist",
-	}
-
-	// Тест успешного создания
-	mockRepo.On("Create", track).Return(nil)
-	err := uc.CreateTrack(track)
-	assert.NoError(t, err)
-	mockRepo.AssertExpectations(t)
-
-	// Тест с ошибкой
-	mockRepo = new(MockTrackRepository)
-	uc = NewTrackUseCase(mockRepo)
-	expectedErr := errors.New("database error")
-	mockRepo.On("Create", track).Return(expectedErr)
-	err = uc.CreateTrack(track)
-	assert.Equal(t, expectedErr, err)
-	mockRepo.AssertExpectations(t)
-}
-
-func TestGetTrackByID(t *testing.T) {
-	mockRepo := new(MockTrackRepository)
-	uc := NewTrackUseCase(mockRepo)
-
-	track := &domain.Track{
-		ID:     "track001",
-		Title:  "Test Track",
-		Artist: "Test Artist",
+func (s *TrackUseCaseIntegrationTestSuite) TearDownSuite() {
+	if s.db != nil {
+		err := s.db.Drop(s.ctx)
+		require.NoError(s.T(), err)
 	}
 
-	// Тест успешного получения
-	mockRepo.On("GetByID", "track001").Return(track, nil)
-	result, err := uc.GetTrackByID("track001")
-	assert.NoError(t, err)
-	assert.Equal(t, track, result)
-	mockRepo.AssertExpectations(t)
-
-	// Тест с ошибкой "не найдено"
-	mockRepo = new(MockTrackRepository)
-	uc = NewTrackUseCase(mockRepo)
-	expectedErr := errors.New("track not found")
-	mockRepo.On("GetByID", "nonexistent").Return(nil, expectedErr)
-	result, err = uc.GetTrackByID("nonexistent")
-	assert.Equal(t, expectedErr, err)
-	assert.Nil(t, result)
-	mockRepo.AssertExpectations(t)
-}
-
-func TestUpdateTrack(t *testing.T) {
-	mockRepo := new(MockTrackRepository)
-	uc := NewTrackUseCase(mockRepo)
-
-	track := &domain.Track{
-		ID:     "track001",
-		Title:  "Updated Track",
-		Artist: "Test Artist",
+	if s.client != nil {
+		err := s.client.Disconnect(s.ctx)
+		require.NoError(s.T(), err)
 	}
 
-	// Тест успешного обновления
-	mockRepo.On("Update", track).Return(nil)
-	err := uc.UpdateTrack(track)
-	assert.NoError(t, err)
-	mockRepo.AssertExpectations(t)
-
-	// Тест с ошибкой
-	mockRepo = new(MockTrackRepository)
-	uc = NewTrackUseCase(mockRepo)
-	expectedErr := errors.New("update error")
-	mockRepo.On("Update", track).Return(expectedErr)
-	err = uc.UpdateTrack(track)
-	assert.Equal(t, expectedErr, err)
-	mockRepo.AssertExpectations(t)
+	if s.container != nil {
+		err := testcontainers.TerminateContainer(
+			s.container,
+		)
+		require.NoError(s.T(), err)
+	}
 }
 
-func TestDeleteTrack(t *testing.T) {
-	mockRepo := new(MockTrackRepository)
-	uc := NewTrackUseCase(mockRepo)
-
-	// Тест успешного удаления
-	mockRepo.On("Delete", "track001").Return(nil)
-	err := uc.DeleteTrack("track001")
-	assert.NoError(t, err)
-	mockRepo.AssertExpectations(t)
-
-	// Тест с ошибкой
-	mockRepo = new(MockTrackRepository)
-	uc = NewTrackUseCase(mockRepo)
-	expectedErr := errors.New("delete error")
-	mockRepo.On("Delete", "track001").Return(expectedErr)
-	err = uc.DeleteTrack("track001")
-	assert.Equal(t, expectedErr, err)
-	mockRepo.AssertExpectations(t)
+func (s *TrackUseCaseIntegrationTestSuite) SetupTest() {
+	err := s.db.Collection("tracks").Drop(s.ctx)
+	require.NoError(s.T(), err)
 }
 
-func TestGetAllTracks(t *testing.T) {
-	mockRepo := new(MockTrackRepository)
-	uc := NewTrackUseCase(mockRepo)
+func integrationTrack(id string) *domain.Track {
+	return &domain.Track{
+		ID:          id,
+		Title:       "Integration Track",
+		Artist:      "Integration Artist",
+		URL:         "https://example.com/integration.mp3",
+		AlbumTitle:  "Integration Album",
+		AlbumArtURL: "https://example.com/album.jpg",
+		PreviewURL:  "https://example.com/preview.mp3",
+		Genre:       []string{"Rock"},
+		Year:        2026,
+	}
+}
+
+func (s *TrackUseCaseIntegrationTestSuite) TestCreateAndGetTrack() {
+	ctx := context.Background()
+
+	track := integrationTrack("integration-001")
+
+	err := s.useCase.CreateTrack(ctx, track)
+	s.Require().NoError(err)
+
+	result, err := s.useCase.GetTrackByID(
+		ctx,
+		track.ID,
+	)
+
+	s.Require().NoError(err)
+	s.Require().NotNil(result)
+
+	s.Equal(track.ID, result.ID)
+	s.Equal(track.Title, result.Title)
+	s.Equal(track.Artist, result.Artist)
+}
+
+func (s *TrackUseCaseIntegrationTestSuite) TestUpdateTrack() {
+	ctx := context.Background()
+
+	track := integrationTrack("integration-001")
+
+	err := s.useCase.CreateTrack(ctx, track)
+	s.Require().NoError(err)
+
+	track.Title = "Updated integration track"
+	track.Year = 2027
+
+	err = s.useCase.UpdateTrack(ctx, track)
+	s.Require().NoError(err)
+
+	result, err := s.useCase.GetTrackByID(
+		ctx,
+		track.ID,
+	)
+
+	s.Require().NoError(err)
+
+	s.Equal("Updated integration track", result.Title)
+	s.Equal(2027, result.Year)
+}
+
+func (s *TrackUseCaseIntegrationTestSuite) TestDeleteTrack() {
+	ctx := context.Background()
+
+	track := integrationTrack("integration-001")
+
+	err := s.useCase.CreateTrack(ctx, track)
+	s.Require().NoError(err)
+
+	err = s.useCase.DeleteTrack(ctx, track.ID)
+	s.Require().NoError(err)
+
+	result, err := s.useCase.GetTrackByID(
+		ctx,
+		track.ID,
+	)
+
+	s.Require().Error(err)
+	s.Nil(result)
+
+	s.ErrorIs(err, domain.ErrTrackNotFound)
+}
+
+func (s *TrackUseCaseIntegrationTestSuite) TestGetAllTracks() {
+	ctx := context.Background()
 
 	tracks := []*domain.Track{
-		{
-			ID:     "track001",
-			Title:  "Test Track 1",
-			Artist: "Test Artist 1",
-		},
-		{
-			ID:     "track002",
-			Title:  "Test Track 2",
-			Artist: "Test Artist 2",
-		},
+		integrationTrack("integration-001"),
+		integrationTrack("integration-002"),
+		integrationTrack("integration-003"),
 	}
 
-	// Тест успешного получения всех треков
-	mockRepo.On("GetAllTracks").Return(tracks, nil)
-	result, err := uc.GetAllTracks()
-	assert.NoError(t, err)
-	assert.Equal(t, tracks, result)
-	assert.Len(t, result, 2)
-	mockRepo.AssertExpectations(t)
+	for _, track := range tracks {
+		err := s.useCase.CreateTrack(ctx, track)
+		s.Require().NoError(err)
+	}
 
-	// Тест с ошибкой
-	mockRepo = new(MockTrackRepository)
-	uc = NewTrackUseCase(mockRepo)
-	expectedErr := errors.New("database error")
-	mockRepo.On("GetAllTracks").Return(nil, expectedErr)
-	result, err = uc.GetAllTracks()
-	assert.Equal(t, expectedErr, err)
-	assert.Nil(t, result)
-	mockRepo.AssertExpectations(t)
+	result, err := s.useCase.GetAllTracks(ctx)
+
+	s.Require().NoError(err)
+	s.Require().Len(result, 3)
+}
+
+func TestTrackUseCaseIntegrationTestSuite(t *testing.T) {
+	suite.Run(t, new(TrackUseCaseIntegrationTestSuite))
 }
