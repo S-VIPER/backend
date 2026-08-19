@@ -2,257 +2,422 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/S-VIPER/backend/gin-api/internal/domain"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/modules/mongodb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
-// TrackRepositoryTestSuite - тестовый набор для репозитория треков
 type TrackRepositoryTestSuite struct {
 	suite.Suite
-	db         *mongo.Database
-	client     *mongo.Client
+
+	ctx       context.Context
+	container *mongodb.MongoDBContainer
+	client    *mongo.Client
+	db        *mongo.Database
+
 	repository *TrackRepository
 }
 
-// SetupSuite - подготовка тестового окружения перед запуском всех тестов
-func (suite *TrackRepositoryTestSuite) SetupSuite() {
-	// Подключение к MongoDB
-	clientOptions := options.Client().ApplyURI("mongodb://localhost:27017")
+func (s *TrackRepositoryTestSuite) SetupSuite() {
+	s.ctx = context.Background()
+
+	container, err := mongodb.Run(
+		s.ctx,
+		"mongo:8",
+	)
+	require.NoError(s.T(), err)
+
+	s.container = container
+
+	connectionString, err := container.ConnectionString(s.ctx)
+	require.NoError(s.T(), err)
+
+	client, err := mongo.Connect(
+		s.ctx,
+		options.Client().ApplyURI(connectionString),
+	)
+	require.NoError(s.T(), err)
+
+	err = client.Ping(s.ctx, nil)
+	require.NoError(s.T(), err)
+
+	s.client = client
+	s.db = client.Database("track_repository_test")
+
+	s.repository = NewTrackRepository(s.db)
+
+	// Compile-time protection for interface implementation.
+	var _ TrackRepositoryInterface = (*TrackRepository)(nil)
+}
+
+func (s *TrackRepositoryTestSuite) TearDownSuite() {
+	if s.db != nil {
+		err := s.db.Drop(s.ctx)
+		require.NoError(s.T(), err)
+	}
+
+	if s.client != nil {
+		err := s.client.Disconnect(s.ctx)
+		require.NoError(s.T(), err)
+	}
+
+	if s.container != nil {
+		err := testcontainers.TerminateContainer(s.container)
+		require.NoError(s.T(), err)
+	}
+}
+
+func (s *TrackRepositoryTestSuite) SetupTest() {
+	err := s.db.Collection("tracks").Drop(s.ctx)
+	require.NoError(s.T(), err)
+}
+
+func testTrack(id string) *domain.Track {
+	return &domain.Track{
+		ID:          id,
+		Title:       "Test Track",
+		Artist:      "Test Artist",
+		URL:         "https://example.com/track.mp3",
+		AlbumTitle:  "Test Album",
+		AlbumArtURL: "https://example.com/album.jpg",
+		PreviewURL:  "https://example.com/preview.mp3",
+		Genre:       []string{"Rock", "Alternative"},
+		Year:        2025,
+	}
+}
+
+// ------------------------------------------------------------
+// Create
+// ------------------------------------------------------------
+
+func (s *TrackRepositoryTestSuite) TestCreate() {
+	ctx := context.Background()
+	track := testTrack("track-001")
+
+	err := s.repository.Create(ctx, track)
+
+	s.Require().NoError(err)
+
+	var stored domain.Track
+
+	err = s.db.
+		Collection("tracks").
+		FindOne(ctx, bson.M{"_id": track.ID}).
+		Decode(&stored)
+
+	s.Require().NoError(err)
+
+	s.Equal(track.ID, stored.ID)
+	s.Equal(track.Title, stored.Title)
+	s.Equal(track.Artist, stored.Artist)
+	s.Equal(track.URL, stored.URL)
+	s.Equal(track.AlbumTitle, stored.AlbumTitle)
+	s.Equal(track.AlbumArtURL, stored.AlbumArtURL)
+	s.Equal(track.PreviewURL, stored.PreviewURL)
+	s.Equal(track.Genre, stored.Genre)
+	s.Equal(track.Year, stored.Year)
+}
+
+func (s *TrackRepositoryTestSuite) TestCreateDuplicateID() {
+	ctx := context.Background()
+	track := testTrack("track-001")
+
+	err := s.repository.Create(ctx, track)
+	s.Require().NoError(err)
+
+	err = s.repository.Create(ctx, track)
+
+	s.Require().Error(err)
+
+	var writeErr mongo.WriteException
+	s.Require().True(errors.As(err, &writeErr))
+}
+
+// ------------------------------------------------------------
+// GetByID
+// ------------------------------------------------------------
+
+func (s *TrackRepositoryTestSuite) TestGetByID() {
+	ctx := context.Background()
+	track := testTrack("track-001")
+
+	_, err := s.db.Collection("tracks").InsertOne(ctx, track)
+	s.Require().NoError(err)
+
+	result, err := s.repository.GetByID(ctx, track.ID)
+
+	s.Require().NoError(err)
+	s.Require().NotNil(result)
+
+	s.Equal(track.ID, result.ID)
+	s.Equal(track.Title, result.Title)
+	s.Equal(track.Artist, result.Artist)
+	s.Equal(track.URL, result.URL)
+	s.Equal(track.AlbumTitle, result.AlbumTitle)
+	s.Equal(track.Genre, result.Genre)
+	s.Equal(track.Year, result.Year)
+}
+
+func (s *TrackRepositoryTestSuite) TestGetByIDNotFound() {
 	ctx := context.Background()
 
-	// Попытка подключения к MongoDB
-	client, err := mongo.Connect(ctx, clientOptions)
-	if err != nil {
-		suite.T().Skip("MongoDB is not available, skipping suite")
-		return
-	}
+	result, err := s.repository.GetByID(ctx, "does-not-exist")
 
-	// Проверка соединения
-	err = client.Ping(ctx, readpref.Primary())
-	if err != nil {
-		suite.T().Skip("MongoDB is not available, skipping suite")
-		return
-	}
-
-	// Создание тестовой базы данных
-	db := client.Database("test_db")
-
-	suite.client = client
-	suite.db = db
-	suite.repository = NewTrackRepository(db)
+	s.Require().Error(err)
+	s.Require().Nil(result)
+	s.ErrorIs(err, domain.ErrTrackNotFound)
 }
 
-// TearDownSuite - очистка после выполнения всех тестов
-func (suite *TrackRepositoryTestSuite) TearDownSuite() {
-	if suite.client != nil {
-		suite.db.Drop(context.Background())
-		suite.client.Disconnect(context.Background())
-	}
+// ------------------------------------------------------------
+// Exists
+// ------------------------------------------------------------
+
+func (s *TrackRepositoryTestSuite) TestExistsWhenTrackExists() {
+	ctx := context.Background()
+	track := testTrack("track-001")
+
+	_, err := s.db.Collection("tracks").InsertOne(ctx, track)
+	s.Require().NoError(err)
+
+	exists, err := s.repository.Exists(ctx, track.ID)
+
+	s.Require().NoError(err)
+	s.True(exists)
 }
 
-// SetupTest - подготовка перед каждым тестом
-func (suite *TrackRepositoryTestSuite) SetupTest() {
-	// Очистка коллекции перед каждым тестом
-	if suite.db != nil {
-		suite.db.Collection("tracks").Drop(context.Background())
-	}
+func (s *TrackRepositoryTestSuite) TestExistsWhenTrackDoesNotExist() {
+	ctx := context.Background()
+
+	exists, err := s.repository.Exists(ctx, "does-not-exist")
+
+	s.Require().NoError(err)
+	s.False(exists)
 }
 
-// TestCreate - тест создания трека
-func (suite *TrackRepositoryTestSuite) TestCreate() {
-	if suite.repository == nil {
-		suite.T().Skip("Repository is not initialized, skipping test")
-		return
-	}
+// ------------------------------------------------------------
+// Update
+// ------------------------------------------------------------
 
-	// Тестовые данные
-	track := &domain.Track{
-		ID:          "track001",
-		Title:       "Test Track",
-		Artist:      "Test Artist",
-		URL:         "http://example.com/track.mp3",
-		AlbumTitle:  "Test Album",
-		AlbumArtURL: "http://example.com/album.jpg",
-		PreviewURL:  "http://example.com/preview.mp3",
-		Genre:       []string{"Rock", "Alternative"},
-		Year:        2023,
-	}
+func (s *TrackRepositoryTestSuite) TestUpdate() {
+	ctx := context.Background()
 
-	// Создание трека
-	err := suite.repository.Create(track)
-	suite.NoError(err)
+	track := testTrack("track-001")
 
-	// Проверка, что трек создан
-	var result domain.Track
-	err = suite.db.Collection("tracks").FindOne(context.Background(), bson.M{"_id": track.ID}).Decode(&result)
-	suite.NoError(err)
-	suite.Equal(track.ID, result.ID)
-	suite.Equal(track.Title, result.Title)
-	suite.Equal(track.Artist, result.Artist)
+	_, err := s.db.Collection("tracks").InsertOne(ctx, track)
+	s.Require().NoError(err)
+
+	updated := testTrack("track-001")
+	updated.Title = "Updated Track"
+	updated.Artist = "Updated Artist"
+	updated.Year = 2026
+	updated.Genre = []string{"Electronic"}
+
+	err = s.repository.Update(ctx, updated)
+
+	s.Require().NoError(err)
+
+	result, err := s.repository.GetByID(ctx, track.ID)
+
+	s.Require().NoError(err)
+	s.Require().NotNil(result)
+
+	s.Equal("Updated Track", result.Title)
+	s.Equal("Updated Artist", result.Artist)
+	s.Equal(2026, result.Year)
+	s.Equal([]string{"Electronic"}, result.Genre)
+
+	// ID must remain unchanged.
+	s.Equal(track.ID, result.ID)
 }
 
-// TestGetByID - тест получения трека по ID
-func (suite *TrackRepositoryTestSuite) TestGetByID() {
-	if suite.repository == nil {
-		suite.T().Skip("Repository is not initialized, skipping test")
-		return
-	}
+func (s *TrackRepositoryTestSuite) TestUpdateNotFound() {
+	ctx := context.Background()
 
-	// Вставка тестовых данных
-	track := &domain.Track{
-		ID:          "track001",
-		Title:       "Test Track",
-		Artist:      "Test Artist",
-		URL:         "http://example.com/track.mp3",
-		AlbumTitle:  "Test Album",
-		AlbumArtURL: "http://example.com/album.jpg",
-		PreviewURL:  "http://example.com/preview.mp3",
-		Genre:       []string{"Rock", "Alternative"},
-		Year:        2023,
-	}
-	_, err := suite.db.Collection("tracks").InsertOne(context.Background(), track)
-	suite.NoError(err)
+	track := testTrack("does-not-exist")
 
-	// Получение трека по ID
-	result, err := suite.repository.GetByID(track.ID)
-	suite.NoError(err)
-	suite.NotNil(result)
-	suite.Equal(track.ID, result.ID)
-	suite.Equal(track.Title, result.Title)
-	suite.Equal(track.Artist, result.Artist)
+	err := s.repository.Update(ctx, track)
 
-	// Получение несуществующего трека
-	result, err = suite.repository.GetByID("nonexistent")
-	suite.Error(err)
-	suite.Nil(result)
+	s.Require().Error(err)
+	s.ErrorIs(err, domain.ErrTrackNotFound)
 }
 
-// TestUpdate - тест обновления трека
-func (suite *TrackRepositoryTestSuite) TestUpdate() {
-	if suite.repository == nil {
-		suite.T().Skip("Repository is not initialized, skipping test")
-		return
-	}
+// ------------------------------------------------------------
+// Delete
+// ------------------------------------------------------------
 
-	// Вставка тестовых данных
-	track := &domain.Track{
-		ID:          "track001",
-		Title:       "Test Track",
-		Artist:      "Test Artist",
-		URL:         "http://example.com/track.mp3",
-		AlbumTitle:  "Test Album",
-		AlbumArtURL: "http://example.com/album.jpg",
-		PreviewURL:  "http://example.com/preview.mp3",
-		Genre:       []string{"Rock", "Alternative"},
-		Year:        2023,
-	}
-	_, err := suite.db.Collection("tracks").InsertOne(context.Background(), track)
-	suite.NoError(err)
+func (s *TrackRepositoryTestSuite) TestDelete() {
+	ctx := context.Background()
 
-	// Обновление трека
-	updatedTrack := &domain.Track{
-		ID:          "track001",
-		Title:       "Updated Track",
-		Artist:      "Test Artist",
-		URL:         "http://example.com/track.mp3",
-		AlbumTitle:  "Test Album",
-		AlbumArtURL: "http://example.com/album.jpg",
-		PreviewURL:  "http://example.com/preview.mp3",
-		Genre:       []string{"Rock", "Alternative"},
-		Year:        2024,
-	}
-	err = suite.repository.Update(updatedTrack)
-	suite.NoError(err)
+	track := testTrack("track-001")
 
-	// Проверка, что трек обновлен
-	var result domain.Track
-	err = suite.db.Collection("tracks").FindOne(context.Background(), bson.M{"_id": track.ID}).Decode(&result)
-	suite.NoError(err)
-	suite.Equal(updatedTrack.Title, result.Title)
-	suite.Equal(updatedTrack.Year, result.Year)
+	_, err := s.db.Collection("tracks").InsertOne(ctx, track)
+	s.Require().NoError(err)
+
+	err = s.repository.Delete(ctx, track.ID)
+
+	s.Require().NoError(err)
+
+	err = s.db.
+		Collection("tracks").
+		FindOne(ctx, bson.M{"_id": track.ID}).
+		Decode(&domain.Track{})
+
+	s.ErrorIs(err, mongo.ErrNoDocuments)
 }
 
-// TestDelete - тест удаления трека
-func (suite *TrackRepositoryTestSuite) TestDelete() {
-	if suite.repository == nil {
-		suite.T().Skip("Repository is not initialized, skipping test")
-		return
-	}
+func (s *TrackRepositoryTestSuite) TestDeleteNotFound() {
+	ctx := context.Background()
 
-	// Вставка тестовых данных
-	track := &domain.Track{
-		ID:          "track001",
-		Title:       "Test Track",
-		Artist:      "Test Artist",
-		URL:         "http://example.com/track.mp3",
-		AlbumTitle:  "Test Album",
-		AlbumArtURL: "http://example.com/album.jpg",
-		PreviewURL:  "http://example.com/preview.mp3",
-		Genre:       []string{"Rock", "Alternative"},
-		Year:        2023,
-	}
-	_, err := suite.db.Collection("tracks").InsertOne(context.Background(), track)
-	suite.NoError(err)
+	err := s.repository.Delete(ctx, "does-not-exist")
 
-	// Удаление трека
-	err = suite.repository.Delete(track.ID)
-	suite.NoError(err)
-
-	// Проверка, что трек удален
-	count, err := suite.db.Collection("tracks").CountDocuments(context.Background(), bson.M{"_id": track.ID})
-	suite.NoError(err)
-	suite.Equal(int64(0), count)
+	s.Require().Error(err)
+	s.ErrorIs(err, domain.ErrTrackNotFound)
 }
 
-// TestGetAllTracks - тест получения всех треков
-func (suite *TrackRepositoryTestSuite) TestGetAllTracks() {
-	if suite.repository == nil {
-		suite.T().Skip("Repository is not initialized, skipping test")
-		return
-	}
+// ------------------------------------------------------------
+// GetAllTracks
+// ------------------------------------------------------------
 
-	// Вставка тестовых данных
-	tracks := []interface{}{
-		&domain.Track{
-			ID:          "track001",
-			Title:       "Test Track 1",
-			Artist:      "Test Artist 1",
-			URL:         "http://example.com/track1.mp3",
-			AlbumTitle:  "Test Album 1",
-			AlbumArtURL: "http://example.com/album1.jpg",
-			PreviewURL:  "http://example.com/preview1.mp3",
-			Genre:       []string{"Rock", "Alternative"},
-			Year:        2023,
-		},
-		&domain.Track{
-			ID:          "track002",
-			Title:       "Test Track 2",
-			Artist:      "Test Artist 2",
-			URL:         "http://example.com/track2.mp3",
-			AlbumTitle:  "Test Album 2",
-			AlbumArtURL: "http://example.com/album2.jpg",
-			PreviewURL:  "http://example.com/preview2.mp3",
-			Genre:       []string{"Pop", "Electronic"},
-			Year:        2022,
-		},
-	}
-	_, err := suite.db.Collection("tracks").InsertMany(context.Background(), tracks)
-	suite.NoError(err)
+func (s *TrackRepositoryTestSuite) TestGetAllTracksEmpty() {
+	ctx := context.Background()
 
-	// Получение всех треков
-	result, err := suite.repository.GetAllTracks()
-	suite.NoError(err)
-	suite.NotNil(result)
-	suite.Len(result, 2)
+	result, err := s.repository.GetAllTracks(ctx)
+
+	s.Require().NoError(err)
+	s.Empty(result)
 }
 
-// TestTrackRepository запускает набор тестов
+func (s *TrackRepositoryTestSuite) TestGetAllTracks() {
+	ctx := context.Background()
+
+	tracks := []*domain.Track{
+		testTrack("track-001"),
+		testTrack("track-002"),
+		testTrack("track-003"),
+	}
+
+	docs := make([]interface{}, 0, len(tracks))
+
+	for _, track := range tracks {
+		docs = append(docs, track)
+	}
+
+	_, err := s.db.
+		Collection("tracks").
+		InsertMany(ctx, docs)
+
+	s.Require().NoError(err)
+
+	result, err := s.repository.GetAllTracks(ctx)
+
+	s.Require().NoError(err)
+	s.Require().Len(result, 3)
+
+	ids := make(map[string]bool, len(result))
+
+	for _, track := range result {
+		ids[track.ID] = true
+	}
+
+	s.True(ids["track-001"])
+	s.True(ids["track-002"])
+	s.True(ids["track-003"])
+}
+
+// ------------------------------------------------------------
+// Context cancellation
+// ------------------------------------------------------------
+
+func (s *TrackRepositoryTestSuite) TestCreateContextCanceled() {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := s.repository.Create(
+		ctx,
+		testTrack("track-001"),
+	)
+
+	s.Require().Error(err)
+	s.True(errors.Is(err, context.Canceled))
+}
+
+func (s *TrackRepositoryTestSuite) TestGetByIDContextCanceled() {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	result, err := s.repository.GetByID(
+		ctx,
+		"track-001",
+	)
+
+	s.Require().Error(err)
+	s.Nil(result)
+	s.True(errors.Is(err, context.Canceled))
+}
+
+func (s *TrackRepositoryTestSuite) TestExistsContextCanceled() {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	exists, err := s.repository.Exists(
+		ctx,
+		"track-001",
+	)
+
+	s.Require().Error(err)
+	s.False(exists)
+	s.True(errors.Is(err, context.Canceled))
+}
+
+func (s *TrackRepositoryTestSuite) TestUpdateContextCanceled() {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := s.repository.Update(
+		ctx,
+		testTrack("track-001"),
+	)
+
+	s.Require().Error(err)
+	s.True(errors.Is(err, context.Canceled))
+}
+
+func (s *TrackRepositoryTestSuite) TestDeleteContextCanceled() {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := s.repository.Delete(
+		ctx,
+		"track-001",
+	)
+
+	s.Require().Error(err)
+	s.True(errors.Is(err, context.Canceled))
+}
+
+func (s *TrackRepositoryTestSuite) TestGetAllTracksContextCanceled() {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	result, err := s.repository.GetAllTracks(ctx)
+
+	s.Require().Error(err)
+	s.Nil(result)
+	s.True(errors.Is(err, context.Canceled))
+}
+
+// ------------------------------------------------------------
+// Test entrypoint
+// ------------------------------------------------------------
+
 func TestTrackRepository(t *testing.T) {
 	suite.Run(t, new(TrackRepositoryTestSuite))
 }
