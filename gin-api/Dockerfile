@@ -16,7 +16,7 @@ COPY . .
 RUN go mod tidy
 
 # Собираем приложение
-RUN CGO_ENABLED=0 GOOS=linux go build -o gin-api ./cmd/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o gin-api ./cmd/server/main.go
 
 # Используем минимальный образ Alpine для финального контейнера
 FROM alpine:latest
