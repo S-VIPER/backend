@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "main" ]
   pull_request:
-    branches: [ main, master ]
+    branches: ["main", "master" ]
 
 jobs:
   test:
@@ -13,7 +13,7 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Go
         uses: actions/setup-go@v4
@@ -25,6 +25,14 @@ jobs:
         run: |
           cd gin-api
           go mod download
+
+      - name: Generate OpenAPI
+        working-directory: gin-api
+        run: go generate ./...
+      
+      - name: Check generated code
+        working-directory: gin-api
+        run: git diff --exit-code
       
       - name: Run tests
         run: |
@@ -43,10 +51,10 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
       
       - name: Build backend image
         run: |

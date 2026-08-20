@@ -1,5 +1,13 @@
 # backend
 
+## Description
+
+Key tools: 
+openapi-gen
+testcontainers
+
+
+
 ## Container run
 
 ```bash
@@ -15,6 +23,10 @@ cd gin-api
 
 ```bash
 go mod download
+```
+
+```bash
+go generate ./...
 ```
 
 ```bash
