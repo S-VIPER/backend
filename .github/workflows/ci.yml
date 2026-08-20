@@ -37,12 +37,8 @@ jobs:
       - name: Run tests
         run: |
           cd gin-api
-          go test -v ./...
-      
-      - name: Run test coverage
-        run: |
-          cd gin-api
-          go test -cover ./...
+          go test -v -cover ./...
+
 
   build:
     name: Build Docker Images for Check
