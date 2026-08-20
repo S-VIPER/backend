@@ -1,23 +1,19 @@
-# Use the golang image as our base
-FROM golang:1.24.1-alpine
+FROM golang:1.25.0-alpine AS builder
 
-# Set the working directory
 WORKDIR /app
 
-# Copy go.mod and go.sum
 COPY go.mod go.sum ./
-
-# Install dependencies
 RUN go mod download
 
-# Copy the source code
 COPY . .
 
-# Make sure all dependencies are available
-RUN go mod tidy
+RUN CGO_ENABLED=0 GOOS=linux go build -o seeder ./cmd/seed
 
-# Copy the seed script to a dedicated location
-COPY cmd/seed/seed.go /app/seeder.go
 
-# Set entrypoint to run the seed script directly
-ENTRYPOINT ["go", "run", "/app/seeder.go"] 
+FROM alpine:latest
+
+WORKDIR /app
+
+COPY --from=builder /app/seeder .
+
+ENTRYPOINT ["./seeder"]
