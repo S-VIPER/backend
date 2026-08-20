@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/mongodb"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -106,24 +105,20 @@ func (s *TrackRepositoryTestSuite) TestCreate() {
 
 	s.Require().NoError(err)
 
-	var stored domain.Track
-
-	err = s.db.
-		Collection("tracks").
-		FindOne(ctx, bson.M{"_id": track.ID}).
-		Decode(&stored)
+	result, err := s.repository.GetByID(ctx, track.ID)
 
 	s.Require().NoError(err)
+	s.Require().NotNil(result)
 
-	s.Equal(track.ID, stored.ID)
-	s.Equal(track.Title, stored.Title)
-	s.Equal(track.Artist, stored.Artist)
-	s.Equal(track.URL, stored.URL)
-	s.Equal(track.AlbumTitle, stored.AlbumTitle)
-	s.Equal(track.AlbumArtURL, stored.AlbumArtURL)
-	s.Equal(track.PreviewURL, stored.PreviewURL)
-	s.Equal(track.Genre, stored.Genre)
-	s.Equal(track.Year, stored.Year)
+	s.Equal(track.ID, result.ID)
+	s.Equal(track.Title, result.Title)
+	s.Equal(track.Artist, result.Artist)
+	s.Equal(track.URL, result.URL)
+	s.Equal(track.AlbumTitle, result.AlbumTitle)
+	s.Equal(track.AlbumArtURL, result.AlbumArtURL)
+	s.Equal(track.PreviewURL, result.PreviewURL)
+	s.Equal(track.Genre, result.Genre)
+	s.Equal(track.Year, result.Year)
 }
 
 func (s *TrackRepositoryTestSuite) TestCreateDuplicateID() {
@@ -136,23 +131,39 @@ func (s *TrackRepositoryTestSuite) TestCreateDuplicateID() {
 	err = s.repository.Create(ctx, track)
 
 	s.Require().Error(err)
-
-	var writeErr mongo.WriteException
-	s.Require().True(errors.As(err, &writeErr))
+	s.ErrorIs(err, domain.ErrTrackAlreadyExists)
 }
 
 // ------------------------------------------------------------
 // GetByID
 // ------------------------------------------------------------
 
+func insertTrackDocument(
+	ctx context.Context,
+	collection *mongo.Collection,
+	track *domain.Track,
+) error {
+	document := trackDocumentFromDomain(track)
+
+	_, err := collection.InsertOne(ctx, document)
+
+	return err
+}
 func (s *TrackRepositoryTestSuite) TestGetByID() {
 	ctx := context.Background()
 	track := testTrack("track-001")
 
-	_, err := s.db.Collection("tracks").InsertOne(ctx, track)
+	err := insertTrackDocument(
+		ctx,
+		s.db.Collection("tracks"),
+		track,
+	)
 	s.Require().NoError(err)
 
-	result, err := s.repository.GetByID(ctx, track.ID)
+	result, err := s.repository.GetByID(
+		ctx,
+		track.ID,
+	)
 
 	s.Require().NoError(err)
 	s.Require().NotNil(result)
@@ -160,10 +171,6 @@ func (s *TrackRepositoryTestSuite) TestGetByID() {
 	s.Equal(track.ID, result.ID)
 	s.Equal(track.Title, result.Title)
 	s.Equal(track.Artist, result.Artist)
-	s.Equal(track.URL, result.URL)
-	s.Equal(track.AlbumTitle, result.AlbumTitle)
-	s.Equal(track.Genre, result.Genre)
-	s.Equal(track.Year, result.Year)
 }
 
 func (s *TrackRepositoryTestSuite) TestGetByIDNotFound() {
@@ -184,7 +191,11 @@ func (s *TrackRepositoryTestSuite) TestExistsWhenTrackExists() {
 	ctx := context.Background()
 	track := testTrack("track-001")
 
-	_, err := s.db.Collection("tracks").InsertOne(ctx, track)
+	err := insertTrackDocument(
+		ctx,
+		s.db.Collection("tracks"),
+		track,
+	)
 	s.Require().NoError(err)
 
 	exists, err := s.repository.Exists(ctx, track.ID)
@@ -211,7 +222,11 @@ func (s *TrackRepositoryTestSuite) TestUpdate() {
 
 	track := testTrack("track-001")
 
-	_, err := s.db.Collection("tracks").InsertOne(ctx, track)
+	err := insertTrackDocument(
+		ctx,
+		s.db.Collection("tracks"),
+		track,
+	)
 	s.Require().NoError(err)
 
 	updated := testTrack("track-001")
@@ -233,8 +248,6 @@ func (s *TrackRepositoryTestSuite) TestUpdate() {
 	s.Equal("Updated Artist", result.Artist)
 	s.Equal(2026, result.Year)
 	s.Equal([]string{"Electronic"}, result.Genre)
-
-	// ID must remain unchanged.
 	s.Equal(track.ID, result.ID)
 }
 
@@ -258,19 +271,25 @@ func (s *TrackRepositoryTestSuite) TestDelete() {
 
 	track := testTrack("track-001")
 
-	_, err := s.db.Collection("tracks").InsertOne(ctx, track)
+	err := insertTrackDocument(
+		ctx,
+		s.db.Collection("tracks"),
+		track,
+	)
 	s.Require().NoError(err)
 
 	err = s.repository.Delete(ctx, track.ID)
 
 	s.Require().NoError(err)
 
-	err = s.db.
-		Collection("tracks").
-		FindOne(ctx, bson.M{"_id": track.ID}).
-		Decode(&domain.Track{})
+	result, err := s.repository.GetByID(
+		ctx,
+		track.ID,
+	)
 
-	s.ErrorIs(err, mongo.ErrNoDocuments)
+	s.Require().Error(err)
+	s.Nil(result)
+	s.ErrorIs(err, domain.ErrTrackNotFound)
 }
 
 func (s *TrackRepositoryTestSuite) TestDeleteNotFound() {
@@ -304,17 +323,14 @@ func (s *TrackRepositoryTestSuite) TestGetAllTracks() {
 		testTrack("track-003"),
 	}
 
-	docs := make([]interface{}, 0, len(tracks))
-
 	for _, track := range tracks {
-		docs = append(docs, track)
+		err := insertTrackDocument(
+			ctx,
+			s.db.Collection("tracks"),
+			track,
+		)
+		s.Require().NoError(err)
 	}
-
-	_, err := s.db.
-		Collection("tracks").
-		InsertMany(ctx, docs)
-
-	s.Require().NoError(err)
 
 	result, err := s.repository.GetAllTracks(ctx)
 
