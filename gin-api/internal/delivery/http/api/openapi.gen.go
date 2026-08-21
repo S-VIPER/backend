@@ -18,25 +18,32 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/gin-gonic/gin"
 	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // Defines values for ErrorResponseErrorCode.
 const (
-	INTERNALERROR         ErrorResponseErrorCode = "INTERNAL_ERROR"
-	INVALIDPLAYLIST       ErrorResponseErrorCode = "INVALID_PLAYLIST"
-	INVALIDPLAYLISTID     ErrorResponseErrorCode = "INVALID_PLAYLIST_ID"
-	INVALIDPLAYLISTNAME   ErrorResponseErrorCode = "INVALID_PLAYLIST_NAME"
-	INVALIDREQUEST        ErrorResponseErrorCode = "INVALID_REQUEST"
-	INVALIDTRACK          ErrorResponseErrorCode = "INVALID_TRACK"
-	INVALIDTRACKARTIST    ErrorResponseErrorCode = "INVALID_TRACK_ARTIST"
-	INVALIDTRACKID        ErrorResponseErrorCode = "INVALID_TRACK_ID"
-	INVALIDTRACKTITLE     ErrorResponseErrorCode = "INVALID_TRACK_TITLE"
-	INVALIDTRACKURL       ErrorResponseErrorCode = "INVALID_TRACK_URL"
-	INVALIDTRACKYEAR      ErrorResponseErrorCode = "INVALID_TRACK_YEAR"
-	PLAYLISTALREADYEXISTS ErrorResponseErrorCode = "PLAYLIST_ALREADY_EXISTS"
-	PLAYLISTNOTFOUND      ErrorResponseErrorCode = "PLAYLIST_NOT_FOUND"
-	TRACKALREADYEXISTS    ErrorResponseErrorCode = "TRACK_ALREADY_EXISTS"
-	TRACKNOTFOUND         ErrorResponseErrorCode = "TRACK_NOT_FOUND"
+	INTERNALERROR               ErrorResponseErrorCode = "INTERNAL_ERROR"
+	INVALIDPLAYLIST             ErrorResponseErrorCode = "INVALID_PLAYLIST"
+	INVALIDPLAYLISTID           ErrorResponseErrorCode = "INVALID_PLAYLIST_ID"
+	INVALIDPLAYLISTNAME         ErrorResponseErrorCode = "INVALID_PLAYLIST_NAME"
+	INVALIDREQUEST              ErrorResponseErrorCode = "INVALID_REQUEST"
+	INVALIDTRACK                ErrorResponseErrorCode = "INVALID_TRACK"
+	INVALIDTRACKARTIST          ErrorResponseErrorCode = "INVALID_TRACK_ARTIST"
+	INVALIDTRACKID              ErrorResponseErrorCode = "INVALID_TRACK_ID"
+	INVALIDTRACKTITLE           ErrorResponseErrorCode = "INVALID_TRACK_TITLE"
+	INVALIDTRACKURL             ErrorResponseErrorCode = "INVALID_TRACK_URL"
+	INVALIDTRACKYEAR            ErrorResponseErrorCode = "INVALID_TRACK_YEAR"
+	PLAYLISTALREADYEXISTS       ErrorResponseErrorCode = "PLAYLIST_ALREADY_EXISTS"
+	PLAYLISTNOTFOUND            ErrorResponseErrorCode = "PLAYLIST_NOT_FOUND"
+	TRACKALREADYEXISTS          ErrorResponseErrorCode = "TRACK_ALREADY_EXISTS"
+	TRACKNOTFOUND               ErrorResponseErrorCode = "TRACK_NOT_FOUND"
+	UNAUTHORIZED                ErrorResponseErrorCode = "UNAUTHORIZED"
+	USERALREADYEXISTS           ErrorResponseErrorCode = "USER_ALREADY_EXISTS"
+	VERIFICATIONEXPIRED         ErrorResponseErrorCode = "VERIFICATION_EXPIRED"
+	VERIFICATIONINVALID         ErrorResponseErrorCode = "VERIFICATION_INVALID"
+	VERIFICATIONRATELIMITED     ErrorResponseErrorCode = "VERIFICATION_RATE_LIMITED"
+	VERIFICATIONTOOMANYATTEMPTS ErrorResponseErrorCode = "VERIFICATION_TOO_MANY_ATTEMPTS"
 )
 
 // Valid indicates whether the value is a known member of the ErrorResponseErrorCode enum.
@@ -71,6 +78,18 @@ func (e ErrorResponseErrorCode) Valid() bool {
 	case TRACKALREADYEXISTS:
 		return true
 	case TRACKNOTFOUND:
+		return true
+	case UNAUTHORIZED:
+		return true
+	case USERALREADYEXISTS:
+		return true
+	case VERIFICATIONEXPIRED:
+		return true
+	case VERIFICATIONINVALID:
+		return true
+	case VERIFICATIONRATELIMITED:
+		return true
+	case VERIFICATIONTOOMANYATTEMPTS:
 		return true
 	default:
 		return false
@@ -143,6 +162,30 @@ type PlaylistResponse struct {
 	Data Playlist `json:"data"`
 }
 
+// RegisterRequest defines model for RegisterRequest.
+type RegisterRequest struct {
+	Email    openapi_types.Email `json:"email"`
+	Password string              `json:"password"`
+}
+
+// RegisterResponse defines model for RegisterResponse.
+type RegisterResponse struct {
+	ExpiresIn      int32              `json:"expires_in"`
+	VerificationId openapi_types.UUID `json:"verification_id"`
+}
+
+// RegistrationVerificationResponse defines model for RegistrationVerificationResponse.
+type RegistrationVerificationResponse struct {
+	ExpiresIn      int32              `json:"expires_in"`
+	RetryAfter     int32              `json:"retry_after"`
+	VerificationId openapi_types.UUID `json:"verification_id"`
+}
+
+// ResendRegistrationVerificationRequest defines model for ResendRegistrationVerificationRequest.
+type ResendRegistrationVerificationRequest struct {
+	VerificationId openapi_types.UUID `json:"verification_id"`
+}
+
 // Track defines model for Track.
 type Track struct {
 	// AlbumArtURL Example: https://example.com/album.jpg
@@ -201,6 +244,18 @@ type UpdateTrackRequest struct {
 	Year        int      `json:"year"`
 }
 
+// UserResponse defines model for UserResponse.
+type UserResponse struct {
+	Email openapi_types.Email `json:"email"`
+	Id    openapi_types.UUID  `json:"id"`
+}
+
+// VerifyRegistrationRequest defines model for VerifyRegistrationRequest.
+type VerifyRegistrationRequest struct {
+	Code           string             `json:"code"`
+	VerificationId openapi_types.UUID `json:"verification_id"`
+}
+
 // PlaylistId defines model for PlaylistId.
 type PlaylistId = string
 
@@ -219,6 +274,21 @@ type InternalServerError = ErrorResponse
 // NotFound defines model for NotFound.
 type NotFound = ErrorResponse
 
+// TooManyRequests defines model for TooManyRequests.
+type TooManyRequests = ErrorResponse
+
+// Unauthorized defines model for Unauthorized.
+type Unauthorized = ErrorResponse
+
+// RegisterJSONRequestBody defines body for Register for application/json ContentType.
+type RegisterJSONRequestBody = RegisterRequest
+
+// ResendRegistrationVerificationJSONRequestBody defines body for ResendRegistrationVerification for application/json ContentType.
+type ResendRegistrationVerificationJSONRequestBody = ResendRegistrationVerificationRequest
+
+// VerifyRegistrationJSONRequestBody defines body for VerifyRegistration for application/json ContentType.
+type VerifyRegistrationJSONRequestBody = VerifyRegistrationRequest
+
 // CreatePlaylistJSONRequestBody defines body for CreatePlaylist for application/json ContentType.
 type CreatePlaylistJSONRequestBody = CreatePlaylistRequest
 
@@ -233,6 +303,15 @@ type UpdateTrackJSONRequestBody = UpdateTrackRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// Register Start user registration
+	// (POST /auth/register)
+	Register(c *gin.Context)
+	// ResendRegistrationVerification Resend registration verification code
+	// (POST /auth/register/resend)
+	ResendRegistrationVerification(c *gin.Context)
+	// VerifyRegistration Verify user email during registration
+	// (POST /auth/register/verify)
+	VerifyRegistration(c *gin.Context)
 	// CreatePlaylist Create playlist
 	// (POST /playlists)
 	CreatePlaylist(c *gin.Context)
@@ -276,6 +355,45 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(c *gin.Context)
+
+// Register operation middleware
+func (siw *ServerInterfaceWrapper) Register(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Register(c)
+}
+
+// ResendRegistrationVerification operation middleware
+func (siw *ServerInterfaceWrapper) ResendRegistrationVerification(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ResendRegistrationVerification(c)
+}
+
+// VerifyRegistration operation middleware
+func (siw *ServerInterfaceWrapper) VerifyRegistration(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.VerifyRegistration(c)
+}
 
 // CreatePlaylist operation middleware
 func (siw *ServerInterfaceWrapper) CreatePlaylist(c *gin.Context) {
@@ -561,6 +679,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 		ErrorHandler:       errorHandler,
 	}
 
+	router.POST(options.BaseURL+"/auth/register", wrapper.Register)
+	router.POST(options.BaseURL+"/auth/register/verify", wrapper.VerifyRegistration)
+	router.POST(options.BaseURL+"/auth/register/resend", wrapper.ResendRegistrationVerification)
 	router.GET(options.BaseURL+"/tracks", wrapper.GetAllTracks)
 	router.POST(options.BaseURL+"/tracks", wrapper.CreateTrack)
 	router.DELETE(options.BaseURL+"/tracks/:trackId", wrapper.DeleteTrack)
@@ -581,6 +702,280 @@ type ConflictJSONResponse ErrorResponse
 type InternalServerErrorJSONResponse ErrorResponse
 
 type NotFoundJSONResponse ErrorResponse
+
+type TooManyRequestsResponseHeaders struct {
+	RetryAfter *int32
+}
+type TooManyRequestsJSONResponse struct {
+	Body ErrorResponse
+
+	Headers TooManyRequestsResponseHeaders
+}
+
+type UnauthorizedJSONResponse ErrorResponse
+
+type RegisterRequestObject struct {
+	Body *RegisterJSONRequestBody
+}
+
+type RegisterResponseObject interface {
+	VisitRegisterResponse(w http.ResponseWriter) error
+}
+
+type Register202JSONResponse RegisterResponse
+
+func (response Register202JSONResponse) VisitRegisterResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(202)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type Register400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response Register400JSONResponse) VisitRegisterResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type Register409JSONResponse struct{ ConflictJSONResponse }
+
+func (response Register409JSONResponse) VisitRegisterResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type Register429JSONResponse struct{ TooManyRequestsJSONResponse }
+
+func (response Register429JSONResponse) VisitRegisterResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type Register500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response Register500JSONResponse) VisitRegisterResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResendRegistrationVerificationRequestObject struct {
+	Body *ResendRegistrationVerificationJSONRequestBody
+}
+
+type ResendRegistrationVerificationResponseObject interface {
+	VisitResendRegistrationVerificationResponse(w http.ResponseWriter) error
+}
+
+type ResendRegistrationVerification202JSONResponse RegistrationVerificationResponse
+
+func (response ResendRegistrationVerification202JSONResponse) VisitResendRegistrationVerificationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(202)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResendRegistrationVerification400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ResendRegistrationVerification400JSONResponse) VisitResendRegistrationVerificationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResendRegistrationVerification404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ResendRegistrationVerification404JSONResponse) VisitResendRegistrationVerificationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResendRegistrationVerification429JSONResponse struct{ TooManyRequestsJSONResponse }
+
+func (response ResendRegistrationVerification429JSONResponse) VisitResendRegistrationVerificationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResendRegistrationVerification500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ResendRegistrationVerification500JSONResponse) VisitResendRegistrationVerificationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type VerifyRegistrationRequestObject struct {
+	Body *VerifyRegistrationJSONRequestBody
+}
+
+type VerifyRegistrationResponseObject interface {
+	VisitVerifyRegistrationResponse(w http.ResponseWriter) error
+}
+
+type VerifyRegistration201JSONResponse UserResponse
+
+func (response VerifyRegistration201JSONResponse) VisitVerifyRegistrationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type VerifyRegistration400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response VerifyRegistration400JSONResponse) VisitVerifyRegistrationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type VerifyRegistration404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response VerifyRegistration404JSONResponse) VisitVerifyRegistrationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type VerifyRegistration409JSONResponse struct{ ConflictJSONResponse }
+
+func (response VerifyRegistration409JSONResponse) VisitVerifyRegistrationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type VerifyRegistration429JSONResponse struct{ TooManyRequestsJSONResponse }
+
+func (response VerifyRegistration429JSONResponse) VisitVerifyRegistrationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if response.Headers.RetryAfter != nil {
+		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
+	}
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type VerifyRegistration500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response VerifyRegistration500JSONResponse) VisitVerifyRegistrationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
 
 type CreatePlaylistRequestObject struct {
 	Body *CreatePlaylistJSONRequestBody
@@ -614,6 +1009,20 @@ func (response CreatePlaylist400JSONResponse) VisitCreatePlaylistResponse(w http
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreatePlaylist401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreatePlaylist401JSONResponse) VisitCreatePlaylistResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -674,6 +1083,20 @@ func (response DeletePlaylist400JSONResponse) VisitDeletePlaylistResponse(w http
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeletePlaylist401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeletePlaylist401JSONResponse) VisitDeletePlaylistResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -811,6 +1234,20 @@ func (response UpdatePlaylist400JSONResponse) VisitUpdatePlaylistResponse(w http
 	return err
 }
 
+type UpdatePlaylist401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdatePlaylist401JSONResponse) VisitUpdatePlaylistResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type UpdatePlaylist404JSONResponse struct{ NotFoundJSONResponse }
 
 func (response UpdatePlaylist404JSONResponse) VisitUpdatePlaylistResponse(w http.ResponseWriter) error {
@@ -868,6 +1305,20 @@ func (response RemoveTrackFromPlaylist400JSONResponse) VisitRemoveTrackFromPlayl
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RemoveTrackFromPlaylist401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response RemoveTrackFromPlaylist401JSONResponse) VisitRemoveTrackFromPlaylistResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -935,6 +1386,20 @@ func (response AddTrackToPlaylist400JSONResponse) VisitAddTrackToPlaylistRespons
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddTrackToPlaylist401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response AddTrackToPlaylist401JSONResponse) VisitAddTrackToPlaylistResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -1042,6 +1507,20 @@ func (response CreateTrack400JSONResponse) VisitCreateTrackResponse(w http.Respo
 	return err
 }
 
+type CreateTrack401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateTrack401JSONResponse) VisitCreateTrackResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type CreateTrack409JSONResponse struct{ ConflictJSONResponse }
 
 func (response CreateTrack409JSONResponse) VisitCreateTrackResponse(w http.ResponseWriter) error {
@@ -1098,6 +1577,20 @@ func (response DeleteTrack400JSONResponse) VisitDeleteTrackResponse(w http.Respo
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteTrack401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteTrack401JSONResponse) VisitDeleteTrackResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -1235,6 +1728,20 @@ func (response UpdateTrack400JSONResponse) VisitUpdateTrackResponse(w http.Respo
 	return err
 }
 
+type UpdateTrack401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateTrack401JSONResponse) VisitUpdateTrackResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type UpdateTrack404JSONResponse struct{ NotFoundJSONResponse }
 
 func (response UpdateTrack404JSONResponse) VisitUpdateTrackResponse(w http.ResponseWriter) error {
@@ -1267,6 +1774,15 @@ func (response UpdateTrack500JSONResponse) VisitUpdateTrackResponse(w http.Respo
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// Register Start user registration
+	// (POST /auth/register)
+	Register(ctx context.Context, request RegisterRequestObject) (RegisterResponseObject, error)
+	// ResendRegistrationVerification Resend registration verification code
+	// (POST /auth/register/resend)
+	ResendRegistrationVerification(ctx context.Context, request ResendRegistrationVerificationRequestObject) (ResendRegistrationVerificationResponseObject, error)
+	// VerifyRegistration Verify user email during registration
+	// (POST /auth/register/verify)
+	VerifyRegistration(ctx context.Context, request VerifyRegistrationRequestObject) (VerifyRegistrationResponseObject, error)
 	// CreatePlaylist Create playlist
 	// (POST /playlists)
 	CreatePlaylist(ctx context.Context, request CreatePlaylistRequestObject) (CreatePlaylistResponseObject, error)
@@ -1357,6 +1873,99 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictGinServerOptions
+}
+
+// Register operation middleware
+func (sh *strictHandler) Register(ctx *gin.Context) {
+	var request RegisterRequestObject
+
+	var body RegisterJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.Register(ctx, request.(RegisterRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Register")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(RegisterResponseObject); ok {
+		if err := validResponse.VisitRegisterResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ResendRegistrationVerification operation middleware
+func (sh *strictHandler) ResendRegistrationVerification(ctx *gin.Context) {
+	var request ResendRegistrationVerificationRequestObject
+
+	var body ResendRegistrationVerificationJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.ResendRegistrationVerification(ctx, request.(ResendRegistrationVerificationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ResendRegistrationVerification")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(ResendRegistrationVerificationResponseObject); ok {
+		if err := validResponse.VisitResendRegistrationVerificationResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// VerifyRegistration operation middleware
+func (sh *strictHandler) VerifyRegistration(ctx *gin.Context) {
+	var request VerifyRegistrationRequestObject
+
+	var body VerifyRegistrationJSONRequestBody
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.VerifyRegistration(ctx, request.(VerifyRegistrationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "VerifyRegistration")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(VerifyRegistrationResponseObject); ok {
+		if err := validResponse.VisitVerifyRegistrationResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // CreatePlaylist operation middleware
@@ -1674,33 +2283,45 @@ func (sh *strictHandler) UpdateTrack(ctx *gin.Context, trackId TrackId) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
+	"ibm6Xf0nAAD//w==",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,
