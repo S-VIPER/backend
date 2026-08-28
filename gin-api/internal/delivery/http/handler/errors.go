@@ -98,6 +98,33 @@ func mapDomainError(
 	case errors.Is(err, domain.ErrTrackAlreadyExists):
 		return http.StatusConflict, api.TRACKALREADYEXISTS, err.Error()
 
+	case errors.Is(err, domain.ErrUserAlreadyExists):
+		return http.StatusConflict, api.USERALREADYEXISTS, err.Error()
+
+	case errors.Is(err, domain.ErrUserNotFound):
+		return http.StatusNotFound, api.INTERNALERROR, err.Error()
+
+	case errors.Is(err, domain.ErrVerificationNotFound):
+		return http.StatusNotFound, api.INTERNALERROR, err.Error()
+
+	case errors.Is(err, domain.ErrVerificationExpired):
+		return http.StatusBadRequest, api.VERIFICATIONEXPIRED, err.Error()
+
+	case errors.Is(err, domain.ErrVerificationInvalid):
+		return http.StatusBadRequest, api.VERIFICATIONINVALID, err.Error()
+
+	case errors.Is(err, domain.ErrVerificationRateLimited):
+		return http.StatusTooManyRequests, api.VERIFICATIONRATELIMITED, err.Error()
+
+	case errors.Is(err, domain.ErrVerificationTooManyAttempts):
+		return http.StatusTooManyRequests, api.VERIFICATIONTOOMANYATTEMPTS, err.Error()
+
+	case errors.Is(err, domain.ErrInvalidEmail):
+		return http.StatusBadRequest, api.INVALIDREQUEST, err.Error()
+
+	case errors.Is(err, domain.ErrInvalidPassword):
+		return http.StatusBadRequest, api.INVALIDREQUEST, err.Error()
+
 	default:
 		return http.StatusInternalServerError, api.INTERNALERROR, "internal server error"
 	}

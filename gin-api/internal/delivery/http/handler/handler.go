@@ -5,6 +5,7 @@ import (
 )
 
 type Handler struct {
+	*AuthHandler
 	*PlaylistHandler
 	*TrackHandler
 }
@@ -12,10 +13,12 @@ type Handler struct {
 var _ api.StrictServerInterface = (*Handler)(nil)
 
 func NewHandler(
+	authHandler *AuthHandler,
 	playlistHandler *PlaylistHandler,
 	trackHandler *TrackHandler,
 ) *Handler {
 	return &Handler{
+		AuthHandler:     authHandler,
 		PlaylistHandler: playlistHandler,
 		TrackHandler:    trackHandler,
 	}
