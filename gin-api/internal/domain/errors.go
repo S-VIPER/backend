@@ -20,3 +20,15 @@ var (
 	ErrPlaylistNotFound      = errors.New("playlist not found")
 	ErrPlaylistAlreadyExists = errors.New("playlist already exists")
 )
+
+var (
+	ErrUserAlreadyExists           = errors.New("user already exists")
+	ErrUserNotFound                = errors.New("user not found")
+	ErrVerificationNotFound        = errors.New("verification not found")
+	ErrVerificationExpired         = errors.New("verification expired")
+	ErrVerificationInvalid         = errors.New("verification invalid")
+	ErrVerificationRateLimited     = errors.New("verification rate limited")
+	ErrVerificationTooManyAttempts = errors.New("too many verification attempts")
+	ErrInvalidEmail                = errors.New("invalid email")
+	ErrInvalidPassword             = errors.New("invalid password")
+)
