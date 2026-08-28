@@ -2,8 +2,10 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/S-VIPER/backend/gin-api/internal/domain"
+	"github.com/google/uuid"
 )
 
 // TrackRepositoryInterface определяет интерфейс для работы с репозиторием треков
@@ -23,4 +25,20 @@ type PlaylistRepositoryInterface interface {
 	Delete(ctx context.Context, id string) error
 	AddTrack(ctx context.Context, playlistID, trackID string) error
 	RemoveTrack(ctx context.Context, playlistID, trackID string) error
+}
+
+type UserRepositoryInterface interface {
+	Create(ctx context.Context, user *domain.User) error
+	GetByEmail(ctx context.Context, email string) (*domain.User, error)
+	GetByID(ctx context.Context, id uuid.UUID) (*domain.User, error)
+	Delete(ctx context.Context, id uuid.UUID) error
+	Activate(ctx context.Context, userID uuid.UUID) error
+}
+
+type EmailVerificationRepositoryInterface interface {
+	Create(ctx context.Context, verification *domain.EmailVerification) error
+	GetByID(ctx context.Context, id uuid.UUID) (*domain.EmailVerification, error)
+	UpdateCode(ctx context.Context, id uuid.UUID, codeHash string, expiresAt time.Time, createdAt time.Time) error
+	IncrementAttempts(ctx context.Context, id uuid.UUID, maxAttempts int) error
+	MarkVerified(ctx context.Context, id uuid.UUID, verifiedAt time.Time) error
 }
