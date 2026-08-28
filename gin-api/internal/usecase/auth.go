@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/S-VIPER/backend/gin-api/internal/domain"
@@ -115,7 +114,6 @@ func (u *AuthUseCase) Register(
 	}
 
 	plainCode, codeHash, err := u.codeGenerator.Generate()
-	log.Printf("hash=%s; code=%s", codeHash, plainCode)
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +211,6 @@ func (u *AuthUseCase) VerifyRegistration(
 		verificationID,
 	)
 	if err != nil {
-		log.Printf(err.Error())
 		return nil, err
 	}
 
@@ -223,9 +220,6 @@ func (u *AuthUseCase) VerifyRegistration(
 
 	now := time.Now()
 
-	log.Printf(verification.ExpiresAt.GoString())
-	log.Printf(now.GoString())
-
 	if !now.Before(verification.ExpiresAt) {
 		return nil, domain.ErrVerificationExpired
 	}
@@ -234,7 +228,6 @@ func (u *AuthUseCase) VerifyRegistration(
 		return nil, domain.ErrVerificationTooManyAttempts
 	}
 
-	log.Printf("hash=%s, code=%s", verification.CodeHash, code)
 	if ok := u.codeGenerator.Compare(
 		verification.CodeHash,
 		code,
@@ -255,7 +248,6 @@ func (u *AuthUseCase) VerifyRegistration(
 		verification.ID,
 		now,
 	); err != nil {
-		log.Printf(err.Error())
 		return nil, err
 	}
 
@@ -263,7 +255,6 @@ func (u *AuthUseCase) VerifyRegistration(
 		ctx,
 		verification.UserID,
 	); err != nil {
-		log.Printf(err.Error())
 		return nil, err
 	}
 
