@@ -1,4 +1,4 @@
-package repository
+package mongodb
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/S-VIPER/backend/gin-api/internal/domain"
+	"github.com/S-VIPER/backend/gin-api/internal/repository"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go"
@@ -55,7 +56,7 @@ func (s *PlaylistRepositoryTestSuite) SetupSuite() {
 
 	s.repository = NewPlaylistRepository(s.db)
 
-	var _ PlaylistRepositoryInterface = (*PlaylistRepository)(nil)
+	var _ repository.PlaylistRepositoryInterface = (*PlaylistRepository)(nil)
 }
 
 func (s *PlaylistRepositoryTestSuite) TearDownSuite() {

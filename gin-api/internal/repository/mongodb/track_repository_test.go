@@ -1,4 +1,4 @@
-package repository
+package mongodb
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/S-VIPER/backend/gin-api/internal/domain"
+	"github.com/S-VIPER/backend/gin-api/internal/repository"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go"
@@ -53,8 +54,7 @@ func (s *TrackRepositoryTestSuite) SetupSuite() {
 
 	s.repository = NewTrackRepository(s.db)
 
-	// Compile-time protection for interface implementation.
-	var _ TrackRepositoryInterface = (*TrackRepository)(nil)
+	var _ repository.TrackRepositoryInterface = (*TrackRepository)(nil)
 }
 
 func (s *TrackRepositoryTestSuite) TearDownSuite() {

@@ -1,10 +1,11 @@
-package repository
+package mongodb
 
 import (
 	"context"
 	"errors"
 
 	"github.com/S-VIPER/backend/gin-api/internal/domain"
+	"github.com/S-VIPER/backend/gin-api/internal/repository"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -14,7 +15,7 @@ type PlaylistRepository struct {
 	collection *mongo.Collection
 }
 
-var _ PlaylistRepositoryInterface = (*PlaylistRepository)(nil)
+var _ repository.PlaylistRepositoryInterface = (*PlaylistRepository)(nil)
 
 func NewPlaylistRepository(db *mongo.Database) *PlaylistRepository {
 	return &PlaylistRepository{
