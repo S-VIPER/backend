@@ -5,25 +5,25 @@ go 1.25.0
 require (
 	github.com/getkin/kin-openapi v0.142.0
 	github.com/gin-gonic/gin v1.10.1
+	github.com/golang-migrate/migrate/v4 v4.19.1
+	github.com/jackc/pgx v3.6.2+incompatible
 	github.com/oapi-codegen/runtime v1.7.0
 	github.com/stretchr/testify v1.12.0
 	github.com/testcontainers/testcontainers-go v0.44.0
 	github.com/testcontainers/testcontainers-go/modules/mongodb v0.44.0
+	github.com/testcontainers/testcontainers-go/modules/postgres v0.44.0
 	go.mongodb.org/mongo-driver v1.17.3
 )
 
 require (
-	github.com/dprotaso/go-yit v0.0.0-20220510233725-9ba8df137936 // indirect
+	github.com/cockroachdb/apd v1.1.0 // indirect
+	github.com/gofrs/uuid v4.4.0+incompatible // indirect
+	github.com/jackc/fake v0.0.0-20150926172116-812a484cc733 // indirect
+	github.com/jackc/pgerrcode v0.0.0-20220416144525-469b46aa5efa // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
-	github.com/oapi-codegen/oapi-codegen/v2 v2.8.0 // indirect
-	github.com/speakeasy-api/jsonpath v0.6.3 // indirect
-	github.com/speakeasy-api/openapi v1.24.0 // indirect
-	github.com/vmware-labs/yaml-jsonpath v0.3.2 // indirect
-	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/mod v0.38.0 // indirect
-	golang.org/x/tools v0.48.0 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 )
 
 require (
@@ -41,7 +41,6 @@ require (
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v0.2.1 // indirect
 	github.com/cpuguy83/dockercfg v0.3.2 // indirect
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/dlclark/regexp2 v1.11.4 // indirect
 	github.com/docker/go-connections v0.7.0 // indirect
@@ -111,6 +110,6 @@ require (
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
-	google.golang.org/protobuf v1.36.5 // indirect
+	google.golang.org/protobuf v1.36.7 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

@@ -10,7 +10,6 @@ import (
 
 	"github.com/S-VIPER/backend/gin-api/internal/delivery/http/api"
 	"github.com/S-VIPER/backend/gin-api/internal/delivery/http/handler"
-	"github.com/S-VIPER/backend/gin-api/internal/delivery/http/middleware"
 	"github.com/S-VIPER/backend/gin-api/internal/repository/mongodb"
 	"github.com/S-VIPER/backend/gin-api/internal/repository/postgres"
 	"github.com/S-VIPER/backend/gin-api/internal/service/email"
@@ -180,13 +179,13 @@ func main() {
 	// -------------------------------------------------------------------------
 	// Protected routes
 	// -------------------------------------------------------------------------
-	jwtSecret := requiredEnv("JWT_SECRET")
+	// jwtSecret := requiredEnv("JWT_SECRET")
 
-	authMiddleware := middleware.NewJWTMiddleware(jwtSecret)
+	// authMiddleware := middleware.NewJWTMiddleware(jwtSecret)
 
 	// Пока используем middleware на уровне защищённых group.
-	protected := router.Group("")
-	protected.Use(authMiddleware.Handler())
+	// protected := router.Group("")
+	// protected.Use(authMiddleware.Handler())
 
 	log.Println("server started on :8080")
 
@@ -204,8 +203,6 @@ func main() {
 		log.Fatalf("server failed: %v", err)
 	}
 
-	_ = http.StatusOK
-	_ = protected
 }
 
 // -----------------------------------------------------------------------------
