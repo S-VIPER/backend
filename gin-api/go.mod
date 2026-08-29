@@ -5,8 +5,8 @@ go 1.25.0
 require (
 	github.com/getkin/kin-openapi v0.142.0
 	github.com/gin-gonic/gin v1.10.1
+	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/golang-migrate/migrate/v4 v4.19.1
-	github.com/jackc/pgx v3.6.2+incompatible
 	github.com/oapi-codegen/runtime v1.7.0
 	github.com/stretchr/testify v1.12.0
 	github.com/testcontainers/testcontainers-go v0.44.0
@@ -16,15 +16,10 @@ require (
 )
 
 require (
-	github.com/cockroachdb/apd v1.1.0 // indirect
-	github.com/gofrs/uuid v4.4.0+incompatible // indirect
-	github.com/jackc/fake v0.0.0-20150926172116-812a484cc733 // indirect
 	github.com/jackc/pgerrcode v0.0.0-20220416144525-469b46aa5efa // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
-	github.com/oapi-codegen/oapi-codegen/v2 v2.8.0 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 )
 
 require (
