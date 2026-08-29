@@ -1,11 +1,12 @@
-package usecase
+package usecase_test
 
 import (
 	"context"
 	"testing"
 
 	"github.com/S-VIPER/backend/gin-api/internal/domain"
-	"github.com/S-VIPER/backend/gin-api/internal/repository"
+	my_mongo "github.com/S-VIPER/backend/gin-api/internal/repository/mongodb"
+	"github.com/S-VIPER/backend/gin-api/internal/usecase"
 
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -26,8 +27,8 @@ type TrackUseCaseIntegrationTestSuite struct {
 	client *mongo.Client
 	db     *mongo.Database
 
-	repository *repository.TrackRepository
-	useCase    *TrackUseCase
+	repository usecase.TrackRepositoryInterface
+	useCase    *usecase.TrackUseCase
 }
 
 func (s *TrackUseCaseIntegrationTestSuite) SetupSuite() {
@@ -56,8 +57,8 @@ func (s *TrackUseCaseIntegrationTestSuite) SetupSuite() {
 	s.client = client
 	s.db = client.Database("track_usecase_integration_test")
 
-	s.repository = repository.NewTrackRepository(s.db)
-	s.useCase = NewTrackUseCase(s.repository)
+	s.repository = my_mongo.NewTrackRepository(s.db)
+	s.useCase = usecase.NewTrackUseCase(s.repository)
 }
 
 func (s *TrackUseCaseIntegrationTestSuite) TearDownSuite() {

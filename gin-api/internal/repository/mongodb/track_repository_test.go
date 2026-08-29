@@ -1,4 +1,4 @@
-package mongodb
+package mongodb_test
 
 import (
 	"context"
@@ -6,7 +6,8 @@ import (
 	"testing"
 
 	"github.com/S-VIPER/backend/gin-api/internal/domain"
-	"github.com/S-VIPER/backend/gin-api/internal/repository"
+	my_mongo "github.com/S-VIPER/backend/gin-api/internal/repository/mongodb"
+	"github.com/S-VIPER/backend/gin-api/internal/usecase"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go"
@@ -23,7 +24,7 @@ type TrackRepositoryTestSuite struct {
 	client    *mongo.Client
 	db        *mongo.Database
 
-	repository *TrackRepository
+	repository *my_mongo.TrackRepository
 }
 
 func (s *TrackRepositoryTestSuite) SetupSuite() {
@@ -52,9 +53,9 @@ func (s *TrackRepositoryTestSuite) SetupSuite() {
 	s.client = client
 	s.db = client.Database("track_repository_test")
 
-	s.repository = NewTrackRepository(s.db)
+	s.repository = my_mongo.NewTrackRepository(s.db)
 
-	var _ repository.TrackRepositoryInterface = (*TrackRepository)(nil)
+	var _ usecase.TrackRepositoryInterface = (*my_mongo.TrackRepository)(nil)
 }
 
 func (s *TrackRepositoryTestSuite) TearDownSuite() {
@@ -143,7 +144,7 @@ func insertTrackDocument(
 	collection *mongo.Collection,
 	track *domain.Track,
 ) error {
-	document := trackDocumentFromDomain(track)
+	document := my_mongo.TrackDocumentFromDomain(track)
 
 	_, err := collection.InsertOne(ctx, document)
 

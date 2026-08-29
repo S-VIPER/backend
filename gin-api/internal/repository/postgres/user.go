@@ -7,7 +7,7 @@ import (
 
 	"github.com/S-VIPER/backend/gin-api/gen/db"
 	"github.com/S-VIPER/backend/gin-api/internal/domain"
-	"github.com/S-VIPER/backend/gin-api/internal/repository"
+	"github.com/S-VIPER/backend/gin-api/internal/usecase"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -25,7 +25,7 @@ func NewUserRepository(pool *pgxpool.Pool) *User {
 	}
 }
 
-var _ repository.UserRepositoryInterface = (*User)(nil)
+var _ usecase.UserRepositoryInterface = (*User)(nil)
 
 func (r *User) Create(
 	ctx context.Context,

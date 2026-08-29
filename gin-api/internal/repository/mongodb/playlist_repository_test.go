@@ -1,4 +1,4 @@
-package mongodb
+package mongodb_test
 
 import (
 	"context"
@@ -6,7 +6,9 @@ import (
 	"testing"
 
 	"github.com/S-VIPER/backend/gin-api/internal/domain"
-	"github.com/S-VIPER/backend/gin-api/internal/repository"
+	my_mongo "github.com/S-VIPER/backend/gin-api/internal/repository/mongodb"
+	"github.com/S-VIPER/backend/gin-api/internal/usecase"
+
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go"
@@ -25,7 +27,7 @@ type PlaylistRepositoryTestSuite struct {
 	client    *mongo.Client
 	db        *mongo.Database
 
-	repository *PlaylistRepository
+	repository *my_mongo.PlaylistRepository
 }
 
 func (s *PlaylistRepositoryTestSuite) SetupSuite() {
@@ -54,9 +56,9 @@ func (s *PlaylistRepositoryTestSuite) SetupSuite() {
 	s.client = client
 	s.db = client.Database("playlist_repository_test")
 
-	s.repository = NewPlaylistRepository(s.db)
+	s.repository = my_mongo.NewPlaylistRepository(s.db)
 
-	var _ repository.PlaylistRepositoryInterface = (*PlaylistRepository)(nil)
+	var _ usecase.PlaylistRepositoryInterface = (*my_mongo.PlaylistRepository)(nil)
 }
 
 func (s *PlaylistRepositoryTestSuite) TearDownSuite() {

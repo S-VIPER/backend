@@ -5,17 +5,16 @@ import (
 	"strings"
 
 	"github.com/S-VIPER/backend/gin-api/internal/domain"
-	"github.com/S-VIPER/backend/gin-api/internal/repository"
 )
 
 type PlaylistUseCase struct {
-	playlistRepo repository.PlaylistRepositoryInterface
-	trackRepo    repository.TrackRepositoryInterface
+	playlistRepo PlaylistRepositoryInterface
+	trackRepo    TrackRepositoryInterface
 }
 
 func NewPlaylistUseCase(
-	playlistRepo repository.PlaylistRepositoryInterface,
-	trackRepo repository.TrackRepositoryInterface,
+	playlistRepo PlaylistRepositoryInterface,
+	trackRepo TrackRepositoryInterface,
 ) *PlaylistUseCase {
 	return &PlaylistUseCase{
 		playlistRepo: playlistRepo,

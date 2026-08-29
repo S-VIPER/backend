@@ -1,4 +1,4 @@
-package usecase
+package usecase_test
 
 import (
 	"context"
@@ -7,7 +7,8 @@ import (
 	"time"
 
 	"github.com/S-VIPER/backend/gin-api/internal/domain"
-	"github.com/S-VIPER/backend/gin-api/internal/repository"
+	"github.com/S-VIPER/backend/gin-api/internal/service"
+	"github.com/S-VIPER/backend/gin-api/internal/usecase"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -38,6 +39,10 @@ func (f *fakeUserRepository) Create(
 	if f.createErr != nil {
 		return f.createErr
 	}
+	// Database fill this fields
+	user.ID = uuid.New()
+	user.CreatedAt = time.Now()
+	user.UpdatedAt = time.Now()
 
 	f.createdUser = user
 
@@ -123,7 +128,7 @@ func (f *fakeUserRepository) Activate(
 	return nil
 }
 
-var _ repository.UserRepositoryInterface = (*fakeUserRepository)(nil)
+var _ usecase.UserRepositoryInterface = (*fakeUserRepository)(nil)
 
 type fakeEmailVerificationRepository struct {
 	createdVerification *domain.EmailVerification
@@ -137,7 +142,7 @@ type fakeEmailVerificationRepository struct {
 	createFn func(
 		context.Context,
 		*domain.EmailVerification,
-	) error
+	) (*domain.EmailVerification, error)
 
 	getByIDFn func(
 		context.Context,
@@ -168,20 +173,25 @@ type fakeEmailVerificationRepository struct {
 func (f *fakeEmailVerificationRepository) Create(
 	ctx context.Context,
 	verification *domain.EmailVerification,
-) error {
+) (*domain.EmailVerification, error) {
 	if f.createErr != nil {
-		return f.createErr
+		return nil, f.createErr
 	}
 
 	if f.createFn != nil {
-		if err := f.createFn(ctx, verification); err != nil {
-			return err
+		var err error
+		verification, err = f.createFn(ctx, verification)
+		if err != nil {
+			return nil, err
 		}
 	}
 
+	verification.ID = uuid.New()
+	verification.CreatedAt = time.Now()
+
 	f.createdVerification = verification
 
-	return nil
+	return verification, nil
 }
 
 func (f *fakeEmailVerificationRepository) GetByID(
@@ -287,7 +297,7 @@ func (f *fakeEmailVerificationRepository) MarkVerified(
 	return nil
 }
 
-var _ repository.EmailVerificationRepositoryInterface = (*fakeEmailVerificationRepository)(nil)
+var _ usecase.EmailVerificationRepositoryInterface = (*fakeEmailVerificationRepository)(nil)
 
 type fakePasswordHasher struct {
 	hashErr    error
@@ -325,7 +335,7 @@ func (h *fakePasswordHasher) Compare(
 	return h.compareErr
 }
 
-var _ PasswordHasher = (*fakePasswordHasher)(nil)
+var _ service.PasswordHasher = (*fakePasswordHasher)(nil)
 
 type fakeVerificationCodeGenerator struct {
 	generateErr error
@@ -334,6 +344,10 @@ type fakeVerificationCodeGenerator struct {
 	codeHash  string
 
 	generateCalls int
+}
+
+func (g *fakeVerificationCodeGenerator) Compare(codeHash string, code string) bool {
+	return false
 }
 
 func (g *fakeVerificationCodeGenerator) Generate() (
@@ -350,7 +364,7 @@ func (g *fakeVerificationCodeGenerator) Generate() (
 	return g.plainCode, g.codeHash, nil
 }
 
-var _ VerificationCodeGenerator = (*fakeVerificationCodeGenerator)(nil)
+var _ service.VerificationCodeGenerator = (*fakeVerificationCodeGenerator)(nil)
 
 type fakeEmailSender struct {
 	sendErr error
@@ -378,7 +392,7 @@ func (s *fakeEmailSender) SendRegistrationCode(
 	return nil
 }
 
-var _ EmailSender = (*fakeEmailSender)(nil)
+var _ service.EmailSender = (*fakeEmailSender)(nil)
 
 func newAuthUseCase(
 	userRepo *fakeUserRepository,
@@ -386,8 +400,8 @@ func newAuthUseCase(
 	passwordHasher *fakePasswordHasher,
 	codeGenerator *fakeVerificationCodeGenerator,
 	emailSender *fakeEmailSender,
-) *AuthUseCase {
-	return NewAuthUseCase(
+) *usecase.AuthUseCase {
+	return usecase.NewAuthUseCase(
 		userRepo,
 		verificationRepo,
 		passwordHasher,

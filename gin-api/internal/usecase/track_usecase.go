@@ -5,16 +5,13 @@ import (
 	"strings"
 
 	"github.com/S-VIPER/backend/gin-api/internal/domain"
-	"github.com/S-VIPER/backend/gin-api/internal/repository"
 )
 
 type TrackUseCase struct {
-	repo repository.TrackRepositoryInterface
+	repo TrackRepositoryInterface
 }
 
-func NewTrackUseCase(
-	repo repository.TrackRepositoryInterface,
-) *TrackUseCase {
+func NewTrackUseCase(repo TrackRepositoryInterface) *TrackUseCase {
 	return &TrackUseCase{
 		repo: repo,
 	}

@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"log"
 
 	"github.com/S-VIPER/backend/gin-api/internal/delivery/http/api"
 	"github.com/S-VIPER/backend/gin-api/internal/usecase"
@@ -69,7 +68,6 @@ func (h *AuthHandler) VerifyRegistration(
 		request.Body.Code,
 	)
 	if err != nil {
-		log.Printf(err.Error())
 		return nil, err
 	}
 

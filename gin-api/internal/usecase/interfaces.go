@@ -1,4 +1,4 @@
-package repository
+package usecase
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// TrackRepositoryInterface определяет интерфейс для работы с репозиторием треков
 type TrackRepositoryInterface interface {
 	Create(ctx context.Context, track *domain.Track) error
 	GetByID(ctx context.Context, id string) (*domain.Track, error)
@@ -36,7 +35,7 @@ type UserRepositoryInterface interface {
 }
 
 type EmailVerificationRepositoryInterface interface {
-	Create(ctx context.Context, verification *domain.EmailVerification) error
+	Create(ctx context.Context, verification *domain.EmailVerification) (*domain.EmailVerification, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*domain.EmailVerification, error)
 	UpdateCode(ctx context.Context, id uuid.UUID, codeHash string, expiresAt time.Time, createdAt time.Time) error
 	IncrementAttempts(ctx context.Context, id uuid.UUID, maxAttempts int) error

@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/S-VIPER/backend/gin-api/internal/domain"
-	"github.com/S-VIPER/backend/gin-api/internal/repository"
+	"github.com/S-VIPER/backend/gin-api/internal/usecase"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -19,7 +19,7 @@ func NewTrackRepository(db *mongo.Database) *TrackRepository {
 	return &TrackRepository{db: db}
 }
 
-var _ repository.TrackRepositoryInterface = (*TrackRepository)(nil)
+var _ usecase.TrackRepositoryInterface = (*TrackRepository)(nil)
 
 func (r *TrackRepository) Create(
 	ctx context.Context,

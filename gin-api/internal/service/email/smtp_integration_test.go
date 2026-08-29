@@ -1,4 +1,6 @@
-package email
+//go:build integration
+
+package email_test
 
 import (
 	"context"
@@ -12,58 +14,81 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
+
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-const (
-	testSMTPHost   = "127.0.0.1"
-	testSMTPPort   = 1025
-	testMailpitURL = "http://127.0.0.1:8025"
-)
+type SMTPSenderIntegrationTestSuite struct {
+	suite.Suite
 
-func TestSMTPSender_SendRegistrationCode_Integration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping SMTP integration test in short mode")
+	ctx       context.Context
+	container testcontainers.Container
+
+	apiURL     string
+	httpClient *http.Client
+
+	sender *SMTPSender
+}
+
+func (s *SMTPSenderIntegrationTestSuite) SetupSuite() {
+	s.ctx = context.Background()
+
+	req := testcontainers.ContainerRequest{
+		Image:        "axllent/mailpit:v1.21",
+		ExposedPorts: []string{"1025/tcp", "8025/tcp"},
+		WaitingFor:   wait.ForListeningPort("8025/tcp"),
 	}
 
-	sender := NewSMTPSender(SMTPConfig{
-		Host: testSMTPHost,
-		Port: testSMTPPort,
+	container, err := testcontainers.GenericContainer(s.ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	require.NoError(s.T(), err)
+	s.container = container
+
+	host, err := container.Host(s.ctx)
+	require.NoError(s.T(), err)
+
+	smtpPort, err := container.MappedPort(s.ctx, "1025/tcp")
+	require.NoError(s.T(), err)
+
+	apiPort, err := container.MappedPort(s.ctx, "8025/tcp")
+	require.NoError(s.T(), err)
+
+	s.apiURL = fmt.Sprintf("http://%s:%s", host, apiPort.Port())
+	s.httpClient = &http.Client{Timeout: 2 * time.Second}
+
+	s.sender = NewSMTPSender(SMTPConfig{
+		Host: host,
+		Port: smtpPort.Int(),
 		From: "no-reply@sviper.local",
 	})
+}
 
+func (s *SMTPSenderIntegrationTestSuite) TearDownSuite() {
+	require.NoError(s.T(), s.container.Terminate(s.ctx))
+}
+
+func (s *SMTPSenderIntegrationTestSuite) TestSendRegistrationCode() {
 	const (
 		recipient = "integration@example.com"
 		code      = "481293"
 	)
 
-	err := sender.SendRegistrationCode(
-		context.Background(),
-		recipient,
-		code,
-	)
-	require.NoError(t, err)
+	err := s.sender.SendRegistrationCode(s.ctx, recipient, code)
+	s.Require().NoError(err)
 
-	message := waitForMailpitMessage(
-		t,
-		recipient,
-		"Verify your S-VIPER account",
-	)
+	message := s.waitForMailpitMessage(recipient, "Verify your S-VIPER account")
 
-	require.Contains(t, message, code)
-	require.Contains(t, message, "The code expires in 10 minutes.")
-	require.Contains(t, message, "S-VIPER")
+	s.Require().Contains(message, code)
+	s.Require().Contains(message, "The code expires in 10 minutes.")
+	s.Require().Contains(message, "S-VIPER")
 }
 
-func waitForMailpitMessage(
-	t *testing.T,
-	recipient string,
-	subject string,
-) string {
-	t.Helper()
-
-	client := &http.Client{
-		Timeout: 2 * time.Second,
-	}
+func (s *SMTPSenderIntegrationTestSuite) waitForMailpitMessage(recipient, subject string) string {
+	s.T().Helper()
 
 	query := url.Values{}
 	query.Set("query", recipient)
@@ -71,13 +96,9 @@ func waitForMailpitMessage(
 	deadline := time.Now().Add(5 * time.Second)
 
 	for time.Now().Before(deadline) {
-		requestURL := fmt.Sprintf(
-			"%s/api/v1/search?%s",
-			testMailpitURL,
-			query.Encode(),
-		)
+		requestURL := fmt.Sprintf("%s/api/v1/search?%s", s.apiURL, query.Encode())
 
-		resp, err := client.Get(requestURL)
+		resp, err := s.httpClient.Get(requestURL)
 		if err == nil {
 			body, readErr := io.ReadAll(resp.Body)
 			resp.Body.Close()
@@ -89,59 +110,46 @@ func waitForMailpitMessage(
 						Subject string `json:"Subject"`
 					} `json:"messages"`
 				}
-
 				if json.Unmarshal(body, &result) == nil {
-					for _, message := range result.Messages {
-						if message.Subject != subject {
+					for _, m := range result.Messages {
+						if m.Subject != subject {
 							continue
 						}
-
-						return getMailpitMessageBody(t, client, message.ID)
+						return s.getMailpitMessageBody(m.ID)
 					}
 				}
 			}
 		}
-
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	t.Fatalf(
-		"message for recipient %q with subject %q was not received by Mailpit",
-		recipient,
-		subject,
-	)
-
+	s.T().Fatalf("message for recipient %q with subject %q was not received by Mailpit", recipient, subject)
 	return ""
 }
 
-func getMailpitMessageBody(
-	t *testing.T,
-	client *http.Client,
-	messageID string,
-) string {
-	t.Helper()
+func (s *SMTPSenderIntegrationTestSuite) getMailpitMessageBody(messageID string) string {
+	s.T().Helper()
 
-	requestURL := fmt.Sprintf(
-		"%s/api/v1/message/%s",
-		testMailpitURL,
-		messageID,
-	)
-
-	resp, err := client.Get(requestURL)
-	require.NoError(t, err)
+	resp, err := s.httpClient.Get(fmt.Sprintf("%s/api/v1/message/%s", s.apiURL, messageID))
+	s.Require().NoError(err)
 	defer resp.Body.Close()
-
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	s.Require().Equal(http.StatusOK, resp.StatusCode)
 
 	body, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
+	s.Require().NoError(err)
 
 	var message struct {
 		Text string `json:"Text"`
 		HTML string `json:"HTML"`
 	}
-
-	require.NoError(t, json.Unmarshal(body, &message))
+	s.Require().NoError(json.Unmarshal(body, &message))
 
 	return strings.TrimSpace(message.Text + "\n" + message.HTML)
+}
+
+func TestSMTPSenderIntegrationTestSuite(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping SMTP integration test in short mode")
+	}
+	suite.Run(t, new(SMTPSenderIntegrationTestSuite))
 }

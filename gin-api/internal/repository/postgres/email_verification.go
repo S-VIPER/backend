@@ -8,7 +8,7 @@ import (
 
 	"github.com/S-VIPER/backend/gin-api/gen/db"
 	"github.com/S-VIPER/backend/gin-api/internal/domain"
-	"github.com/S-VIPER/backend/gin-api/internal/repository"
+	"github.com/S-VIPER/backend/gin-api/internal/usecase"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -26,12 +26,12 @@ func NewEmailVerificationRepository(pool *pgxpool.Pool) *EmailVerification {
 	}
 }
 
-var _ repository.EmailVerificationRepositoryInterface = (*EmailVerification)(nil)
+var _ usecase.EmailVerificationRepositoryInterface = (*EmailVerification)(nil)
 
 func (r *EmailVerification) Create(
 	ctx context.Context,
 	verification *domain.EmailVerification,
-) error {
+) (*domain.EmailVerification, error) {
 	created, err := r.queries.CreateEmailVerification(
 		ctx,
 		db.CreateEmailVerificationParams{
@@ -41,12 +41,12 @@ func (r *EmailVerification) Create(
 		},
 	)
 	if err != nil {
-		return fmt.Errorf("create email verification: %w", err)
+		return nil, fmt.Errorf("create email verification: %w", err)
 	}
 
 	*verification = toDomainEmailVerification(created)
 
-	return nil
+	return verification, nil
 }
 
 func (r *EmailVerification) GetByID(

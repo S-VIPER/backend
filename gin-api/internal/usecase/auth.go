@@ -7,14 +7,13 @@ import (
 	"time"
 
 	"github.com/S-VIPER/backend/gin-api/internal/domain"
-	"github.com/S-VIPER/backend/gin-api/internal/repository"
 	"github.com/S-VIPER/backend/gin-api/internal/service"
 	"github.com/google/uuid"
 )
 
 type AuthUseCase struct {
-	userRepository         repository.UserRepositoryInterface
-	verificationRepository repository.EmailVerificationRepositoryInterface
+	userRepository         UserRepositoryInterface
+	verificationRepository EmailVerificationRepositoryInterface
 
 	passwordHasher service.PasswordHasher
 	codeGenerator  service.VerificationCodeGenerator
@@ -22,8 +21,8 @@ type AuthUseCase struct {
 }
 
 func NewAuthUseCase(
-	userRepository repository.UserRepositoryInterface,
-	verificationRepository repository.EmailVerificationRepositoryInterface,
+	userRepository UserRepositoryInterface,
+	verificationRepository EmailVerificationRepositoryInterface,
 	passwordHasher service.PasswordHasher,
 	codeGenerator service.VerificationCodeGenerator,
 	emailSender service.EmailSender,
@@ -113,6 +112,11 @@ func (u *AuthUseCase) Register(
 		return nil, err
 	}
 
+	user, err = u.userRepository.GetByEmail(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+
 	plainCode, codeHash, err := u.codeGenerator.Generate()
 	if err != nil {
 		return nil, err
@@ -124,7 +128,7 @@ func (u *AuthUseCase) Register(
 		ExpiresAt: time.Now().Add(registrationVerificationTTL),
 	}
 
-	if err := u.verificationRepository.Create(ctx, verification); err != nil {
+	if verification, err = u.verificationRepository.Create(ctx, verification); err != nil {
 		return nil, err
 	}
 
