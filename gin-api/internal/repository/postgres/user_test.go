@@ -12,9 +12,11 @@ import (
 	"github.com/S-VIPER/backend/gin-api/internal/usecase"
 	"github.com/gofrs/uuid"
 	"github.com/golang-migrate/migrate/v4"
-	pgxDriver "github.com/golang-migrate/migrate/v4/database/pgx/v5"
+	migrateDriver "github.com/golang-migrate/migrate/v4/database/pgx/v5"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
+
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go"
@@ -73,7 +75,7 @@ func (s *UserPostgresIntegrationTestSuite) runMigrations() {
 	db := stdlib.OpenDB(*s.pool.Config().ConnConfig)
 	defer db.Close()
 
-	driver, err := pgxDriver.WithInstance(db, &pgxDriver.Config{})
+	driver, err := migrateDriver.WithInstance(db, &migrateDriver.Config{})
 	require.NoError(s.T(), err)
 
 	migrationsPath := filepath.Join("..", "..", "..", "migrations")
