@@ -113,6 +113,84 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /auth/login:
+    post:
+      tags:
+        - Auth
+      operationId: login
+      summary: Login user
+      description: Authenticates a verified user and creates an authenticated session.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /auth/refresh:
+    post:
+      tags:
+        - Auth
+      operationId: refresh
+      summary: Refresh access token
+      description: Rotates the refresh token and returns a new access token pair.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Tokens refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /auth/logout:
+    post:
+      tags:
+        - Auth
+      operationId: logout
+      summary: Logout user
+      description: Revokes the supplied refresh token.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        '204':
+          description: Logged out
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /tracks:
     post:
       tags:
@@ -262,7 +340,7 @@ paths:
         - Playlists
       operationId: getPlaylistByID
       summary: Get playlist by ID
-      description: Returns a public playlist.
+      description: Returns playlist owned by the authenticated user.
       security: []
       responses:
         '200':
@@ -480,6 +558,71 @@ components:
           type: string
           format: email
 
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 5
+          maxLength: 320
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 128
+
+    RefreshRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - refresh_token
+      properties:
+        refresh_token:
+          type: string
+          minLength: 1
+
+    LogoutRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - refresh_token
+      properties:
+        refresh_token:
+          type: string
+          minLength: 1
+
+    AuthResponse:
+      type: object
+      required:
+        - access_token
+        - refresh_token
+        - expires_in
+        - token_type
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        expires_in:
+          type: integer
+          format: int32
+          minimum: 1
+        token_type:
+          type: string
+          enum:
+            - Bearer
+
+    PlaylistVisibility:
+      type: string
+      enum:
+        - private
+        - public
+
     Track:
       type: object
       required:
@@ -690,6 +833,9 @@ components:
             - "track-001"
             - "track-002"
 
+        visibility:
+          $ref: '#/components/schemas/PlaylistVisibility'
+
     CreatePlaylistRequest:
       type: object
       required:
@@ -701,6 +847,9 @@ components:
           minLength: 1
           maxLength: 200
           example: "My Workout"
+        visibility:
+          $ref: '#/components/schemas/PlaylistVisibility'
+          default: private
 
     UpdatePlaylistRequest:
       type: object
@@ -713,6 +862,8 @@ components:
           minLength: 1
           maxLength: 200
           example: "Updated Workout"
+        visibility:
+          $ref: '#/components/schemas/PlaylistVisibility'
 
     PlaylistResponse:
       type: object
@@ -771,6 +922,7 @@ components:
                 - VERIFICATION_TOO_MANY_ATTEMPTS
                 - VERIFICATION_RATE_LIMITED
                 - UNAUTHORIZED
+                - INVALID_CREDENTIALS
               example: PLAYLIST_NOT_FOUND
 
             message:
