@@ -18,6 +18,25 @@ type EmailVerification struct {
 	VerifiedAt pgtype.Timestamptz
 }
 
+type Playlist struct {
+	ID         pgtype.UUID
+	OwnerID    pgtype.UUID
+	Name       string
+	Visibility string
+	Tracks     []string
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+}
+
+type RefreshToken struct {
+	ID        pgtype.UUID
+	UserID    pgtype.UUID
+	TokenHash string
+	ExpiresAt pgtype.Timestamptz
+	CreatedAt pgtype.Timestamptz
+	RevokedAt pgtype.Timestamptz
+}
+
 type User struct {
 	ID            pgtype.UUID
 	Email         string
