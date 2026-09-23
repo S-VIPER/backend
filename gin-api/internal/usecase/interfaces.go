@@ -41,3 +41,10 @@ type EmailVerificationRepositoryInterface interface {
 	IncrementAttempts(ctx context.Context, id uuid.UUID, maxAttempts int) error
 	MarkVerified(ctx context.Context, id uuid.UUID, verifiedAt time.Time) error
 }
+
+type RefreshTokenRepositoryInterface interface {
+	Create(ctx context.Context, session *domain.RefreshTokenSession) error
+	GetByTokenHash(ctx context.Context, tokenHash string) (*domain.RefreshTokenSession, error)
+	Revoke(ctx context.Context, id uuid.UUID, revokedAt time.Time) error
+	Rotate(ctx context.Context, oldID uuid.UUID, newSession *domain.RefreshTokenSession, revokedAt time.Time) error
+}

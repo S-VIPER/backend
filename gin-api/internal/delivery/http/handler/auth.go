@@ -12,12 +12,8 @@ type AuthHandler struct {
 	useCase *usecase.AuthUseCase
 }
 
-func NewAuthHandler(
-	useCase *usecase.AuthUseCase,
-) *AuthHandler {
-	return &AuthHandler{
-		useCase: useCase,
-	}
+func NewAuthHandler(useCase *usecase.AuthUseCase) *AuthHandler {
+	return &AuthHandler{useCase: useCase}
 }
 
 func (h *AuthHandler) Register(
@@ -75,4 +71,56 @@ func (h *AuthHandler) VerifyRegistration(
 		Id:    user.ID,
 		Email: openapi_types.Email(user.Email),
 	}, nil
+}
+
+func (h *AuthHandler) Login(
+	ctx context.Context,
+	request api.LoginRequestObject,
+) (api.LoginResponseObject, error) {
+	result, err := h.useCase.Login(
+		ctx,
+		string(request.Body.Email),
+		request.Body.Password,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return api.Login200JSONResponse{
+		AccessToken:  result.AccessToken,
+		RefreshToken: result.RefreshToken,
+		ExpiresIn:    result.ExpiresIn,
+		TokenType:    "Bearer",
+	}, nil
+}
+
+func (h *AuthHandler) Refresh(
+	ctx context.Context,
+	request api.RefreshRequestObject,
+) (api.RefreshResponseObject, error) {
+	result, err := h.useCase.Refresh(
+		ctx,
+		request.Body.RefreshToken,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return api.Refresh200JSONResponse{
+		AccessToken:  result.AccessToken,
+		RefreshToken: result.RefreshToken,
+		ExpiresIn:    result.ExpiresIn,
+		TokenType:    "Bearer",
+	}, nil
+}
+
+func (h *AuthHandler) Logout(
+	ctx context.Context,
+	request api.LogoutRequestObject,
+) (api.LogoutResponseObject, error) {
+	if err := h.useCase.Logout(ctx, request.Body.RefreshToken); err != nil {
+		return nil, err
+	}
+
+	return api.Logout204Response{}, nil
 }

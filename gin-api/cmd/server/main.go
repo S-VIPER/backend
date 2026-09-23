@@ -10,10 +10,12 @@ import (
 
 	"github.com/S-VIPER/backend/gin-api/internal/delivery/http/api"
 	"github.com/S-VIPER/backend/gin-api/internal/delivery/http/handler"
+	"github.com/S-VIPER/backend/gin-api/internal/delivery/http/middleware"
 	"github.com/S-VIPER/backend/gin-api/internal/repository/mongodb"
 	"github.com/S-VIPER/backend/gin-api/internal/repository/postgres"
 	"github.com/S-VIPER/backend/gin-api/internal/service/email"
 	"github.com/S-VIPER/backend/gin-api/internal/service/password"
+	"github.com/S-VIPER/backend/gin-api/internal/service/token"
 	"github.com/S-VIPER/backend/gin-api/internal/service/verification"
 	"github.com/S-VIPER/backend/gin-api/internal/usecase"
 
@@ -37,6 +39,7 @@ func main() {
 	}
 
 	mongodbURI := requiredEnv("MONGODB_URI")
+	jwtSecret := requiredEnv("JWT_SECRET")
 
 	// -------------------------------------------------------------------------
 	// PostgreSQL
@@ -56,6 +59,8 @@ func main() {
 
 	userRepo := postgres.NewUserRepository(pgPool)
 	verificationRepo := postgres.NewEmailVerificationRepository(pgPool)
+	refreshTokenRepo := postgres.NewRefreshTokenRepository(pgPool)
+	playlistRepo := postgres.NewPlaylistRepository(pgPool)
 
 	// -------------------------------------------------------------------------
 	// MongoDB
@@ -89,7 +94,6 @@ func main() {
 	log.Println("connected to MongoDB")
 
 	trackRepo := mongodb.NewTrackRepository(mongoDB)
-	playlistRepo := mongodb.NewPlaylistRepository(mongoDB)
 
 	// -------------------------------------------------------------------------
 	// Auth dependencies
@@ -98,6 +102,13 @@ func main() {
 	passwordHasher := password.NewArgon2Hasher()
 
 	codeGenerator := verification.NewCodeGenerator()
+	accessTokenService := token.NewJWTService(
+		jwtSecret,
+		"sviper-api",
+		"sviper-client",
+		15*time.Minute,
+	)
+	refreshTokenService := token.NewRefreshTokenService()
 
 	// SMTP/provider.
 	smtpHost := os.Getenv("SMTP_HOST")
@@ -125,6 +136,9 @@ func main() {
 		passwordHasher,
 		codeGenerator,
 		emailSender,
+		refreshTokenRepo,
+		accessTokenService,
+		refreshTokenService,
 	)
 
 	// -------------------------------------------------------------------------
@@ -157,10 +171,11 @@ func main() {
 	// -------------------------------------------------------------------------
 
 	router := gin.Default()
+	authMiddleware := middleware.NewJWTMiddleware(accessTokenService)
 
 	strictHandler := api.NewStrictHandlerWithOptions(
 		httpHandler,
-		nil,
+		[]api.StrictMiddlewareFunc{authMiddleware.StrictMiddleware},
 		api.StrictGinServerOptions{
 			RequestErrorHandlerFunc:  handler.HandleRequestError,
 			HandlerErrorFunc:         handler.HandleHandlerError,
@@ -175,17 +190,6 @@ func main() {
 			BaseURL: "",
 		},
 	)
-
-	// -------------------------------------------------------------------------
-	// Protected routes
-	// -------------------------------------------------------------------------
-	// jwtSecret := requiredEnv("JWT_SECRET")
-
-	// authMiddleware := middleware.NewJWTMiddleware(jwtSecret)
-
-	// Пока используем middleware на уровне защищённых group.
-	// protected := router.Group("")
-	// protected.Use(authMiddleware.Handler())
 
 	log.Println("server started on :8080")
 

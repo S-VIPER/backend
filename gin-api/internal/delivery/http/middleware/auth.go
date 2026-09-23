@@ -2,13 +2,13 @@ package middleware
 
 import (
 	"context"
-	"net/http"
 	"strings"
 
-	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
-
 	"github.com/S-VIPER/backend/gin-api/internal/delivery/http/api"
+	"github.com/S-VIPER/backend/gin-api/internal/domain"
+	"github.com/S-VIPER/backend/gin-api/internal/service"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type contextKey string
@@ -16,81 +16,74 @@ type contextKey string
 const userIDContextKey contextKey = "userID"
 
 type JWTMiddleware struct {
-	secret []byte
+	accessTokenService service.AccessTokenService
 }
 
-func NewJWTMiddleware(secret string) *JWTMiddleware {
-	return &JWTMiddleware{
-		secret: []byte(secret),
+func NewJWTMiddleware(accessTokenService service.AccessTokenService) *JWTMiddleware {
+	return &JWTMiddleware{accessTokenService: accessTokenService}
+}
+
+func (m *JWTMiddleware) StrictMiddleware(
+	next api.StrictHandlerFunc,
+	operationID string,
+) api.StrictHandlerFunc {
+	return func(c *gin.Context, request any) (any, error) {
+		if operationID == "GetPlaylistByID" {
+			if err := m.authenticateOptional(c); err != nil {
+				return nil, err
+			}
+		} else if requiresAuthentication(operationID) {
+			if err := m.authenticate(c); err != nil {
+				return nil, err
+			}
+		}
+
+		return next(c, request)
 	}
 }
 
-type Claims struct {
-	jwt.RegisteredClaims
+func requiresAuthentication(operationID string) bool {
+	switch operationID {
+	case "CreateTrack",
+		"UpdateTrack",
+		"DeleteTrack",
+		"CreatePlaylist",
+		"UpdatePlaylist",
+		"DeletePlaylist",
+		"AddTrackToPlaylist",
+		"RemoveTrackFromPlaylist":
+		return true
+	default:
+		return false
+	}
 }
 
-func (m *JWTMiddleware) Handler() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		authHeader, ok := bearerToken(c.GetHeader("Authorization"))
-		if !ok {
-			writeUnauthorized(
-				c,
-				"missing or invalid Authorization header",
-			)
-			return
-		}
-
-		token, err := jwt.ParseWithClaims(
-			authHeader,
-			&Claims{},
-			func(token *jwt.Token) (any, error) {
-				if token.Method != jwt.SigningMethodHS256 {
-					return nil, jwt.ErrSignatureInvalid
-				}
-
-				return m.secret, nil
-			},
-			jwt.WithValidMethods([]string{
-				jwt.SigningMethodHS256.Alg(),
-			}),
-		)
-
-		if err != nil {
-			writeUnauthorized(c, "invalid or expired token")
-			return
-		}
-
-		claims, ok := token.Claims.(*Claims)
-		if !ok || !token.Valid {
-			writeUnauthorized(c, "invalid token")
-			return
-		}
-
-		if claims.Subject == "" {
-			writeUnauthorized(c, "token subject is missing")
-			return
-		}
-
-		if claims.ExpiresAt == nil {
-			writeUnauthorized(c, "token expiration is missing")
-			return
-		}
-
-		ctx := context.WithValue(
-			c.Request.Context(),
-			userIDContextKey,
-			claims.Subject,
-		)
-
-		c.Request = c.Request.WithContext(ctx)
-
-		c.Next()
+func (m *JWTMiddleware) authenticate(c *gin.Context) error {
+	rawToken, ok := bearerToken(c.GetHeader("Authorization"))
+	if !ok {
+		return domain.ErrUnauthorized
 	}
+
+	claims, err := m.accessTokenService.Parse(rawToken)
+	if err != nil {
+		return domain.ErrUnauthorized
+	}
+
+	setUserID(c, claims.UserID)
+	return nil
+}
+
+func (m *JWTMiddleware) authenticateOptional(c *gin.Context) error {
+	header := strings.TrimSpace(c.GetHeader("Authorization"))
+	if header == "" {
+		return nil
+	}
+
+	return m.authenticate(c)
 }
 
 func bearerToken(header string) (string, bool) {
 	parts := strings.Fields(header)
-
 	if len(parts) != 2 {
 		return "", false
 	}
@@ -106,23 +99,34 @@ func bearerToken(header string) (string, bool) {
 	return parts[1], true
 }
 
-func UserID(ctx context.Context) (string, bool) {
-	userID, ok := ctx.Value(userIDContextKey).(string)
+func setUserID(c *gin.Context, id uuid.UUID) {
+	// The strict OpenAPI handler passes *gin.Context to handlers as
+	// context.Context. Gin's Value() does not necessarily delegate to
+	// Request.Context(), so keep the value in Gin's context as well.
+	c.Set(string(userIDContextKey), id)
 
-	return userID, ok
+	// Also keep it in the standard request context for code that receives
+	// c.Request.Context() downstream.
+	ctx := context.WithValue(
+		c.Request.Context(),
+		userIDContextKey,
+		id,
+	)
+	c.Request = c.Request.WithContext(ctx)
 }
 
-func writeUnauthorized(
-	c *gin.Context,
-	message string,
-) {
-	response := api.ErrorResponse{}
+func UserID(ctx context.Context) (uuid.UUID, bool) {
+	// Strict handlers receive *gin.Context as context.Context.
+	if c, ok := ctx.(*gin.Context); ok {
+		if value, exists := c.Get(string(userIDContextKey)); exists {
+			id, ok := value.(uuid.UUID)
+			if ok {
+				return id, true
+			}
+		}
+	}
 
-	response.Error.Code = "UNAUTHORIZED"
-	response.Error.Message = message
-
-	c.AbortWithStatusJSON(
-		http.StatusUnauthorized,
-		response,
-	)
+	// Fallback for ordinary context.Context callers.
+	userID, ok := ctx.Value(userIDContextKey).(uuid.UUID)
+	return userID, ok
 }

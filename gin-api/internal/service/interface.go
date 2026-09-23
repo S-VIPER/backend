@@ -1,6 +1,11 @@
 package service
 
-import "context"
+import (
+	"context"
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type PasswordHasher interface {
 	Hash(password string) (string, error)
@@ -23,4 +28,20 @@ type EmailSender interface {
 		email string,
 		code string,
 	) error
+}
+
+type AccessTokenClaims struct {
+	UserID    uuid.UUID
+	SessionID uuid.UUID
+}
+
+type AccessTokenService interface {
+	Generate(userID, sessionID uuid.UUID, now time.Time) (string, error)
+	Parse(token string) (AccessTokenClaims, error)
+	ExpiresIn() time.Duration
+}
+
+type RefreshTokenService interface {
+	Generate() (plainToken string, tokenHash string, err error)
+	Hash(token string) string
 }

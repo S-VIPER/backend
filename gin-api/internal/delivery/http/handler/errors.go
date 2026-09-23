@@ -101,6 +101,12 @@ func mapDomainError(
 	case errors.Is(err, domain.ErrUserAlreadyExists):
 		return http.StatusConflict, api.USERALREADYEXISTS, err.Error()
 
+	case errors.Is(err, domain.ErrInvalidCredentials):
+		return http.StatusUnauthorized, api.INVALIDCREDENTIALS, "invalid credentials"
+
+	case errors.Is(err, domain.ErrUnauthorized):
+		return http.StatusUnauthorized, api.UNAUTHORIZED, "authentication required"
+
 	case errors.Is(err, domain.ErrUserNotFound):
 		return http.StatusNotFound, api.INTERNALERROR, err.Error()
 

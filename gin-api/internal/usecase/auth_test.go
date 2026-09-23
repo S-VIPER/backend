@@ -394,6 +394,80 @@ func (s *fakeEmailSender) SendRegistrationCode(
 
 var _ service.EmailSender = (*fakeEmailSender)(nil)
 
+type fakeRefreshTokenRepository struct {
+	sessions map[string]*domain.RefreshTokenSession
+}
+
+func newFakeRefreshTokenRepository() *fakeRefreshTokenRepository {
+	return &fakeRefreshTokenRepository{sessions: make(map[string]*domain.RefreshTokenSession)}
+}
+
+func (f *fakeRefreshTokenRepository) Create(_ context.Context, session *domain.RefreshTokenSession) error {
+	copy := *session
+	f.sessions[session.TokenHash] = &copy
+	return nil
+}
+
+func (f *fakeRefreshTokenRepository) GetByTokenHash(_ context.Context, tokenHash string) (*domain.RefreshTokenSession, error) {
+	session, ok := f.sessions[tokenHash]
+	if !ok {
+		return nil, domain.ErrInvalidCredentials
+	}
+	copy := *session
+	return &copy, nil
+}
+
+func (f *fakeRefreshTokenRepository) Revoke(_ context.Context, id uuid.UUID, revokedAt time.Time) error {
+	for _, session := range f.sessions {
+		if session.ID == id {
+			session.RevokedAt = &revokedAt
+			return nil
+		}
+	}
+	return nil
+}
+
+func (f *fakeRefreshTokenRepository) Rotate(_ context.Context, oldID uuid.UUID, newSession *domain.RefreshTokenSession, revokedAt time.Time) error {
+	if err := f.Revoke(context.Background(), oldID, revokedAt); err != nil {
+		return err
+	}
+	return f.Create(context.Background(), newSession)
+}
+
+var _ usecase.RefreshTokenRepositoryInterface = (*fakeRefreshTokenRepository)(nil)
+
+type fakeAccessTokenService struct{}
+
+func (f *fakeAccessTokenService) Generate(userID, sessionID uuid.UUID, _ time.Time) (string, error) {
+	return "access:" + userID.String() + ":" + sessionID.String(), nil
+}
+
+func (f *fakeAccessTokenService) ExpiresIn() time.Duration {
+	return 15 * time.Minute
+}
+
+func (f *fakeAccessTokenService) Parse(_ string) (service.AccessTokenClaims, error) {
+	return service.AccessTokenClaims{}, nil
+}
+
+var _ service.AccessTokenService = (*fakeAccessTokenService)(nil)
+
+type fakeRefreshTokenService struct {
+	counter int
+}
+
+func (f *fakeRefreshTokenService) Generate() (string, string, error) {
+	f.counter++
+	plain := "refresh-token-" + string(rune('0'+f.counter))
+	return plain, "hash-" + plain, nil
+}
+
+func (f *fakeRefreshTokenService) Hash(token string) string {
+	return "hash-" + token
+}
+
+var _ service.RefreshTokenService = (*fakeRefreshTokenService)(nil)
+
 func newAuthUseCase(
 	userRepo *fakeUserRepository,
 	verificationRepo *fakeEmailVerificationRepository,
@@ -407,6 +481,9 @@ func newAuthUseCase(
 		passwordHasher,
 		codeGenerator,
 		emailSender,
+		newFakeRefreshTokenRepository(),
+		&fakeAccessTokenService{},
+		&fakeRefreshTokenService{},
 	)
 }
 
@@ -796,4 +873,198 @@ func TestAuthUseCase_Register_InvalidPassword(t *testing.T) {
 	require.Equal(t, 0, passwordHasher.hashCalls)
 	require.Equal(t, 0, codeGenerator.generateCalls)
 	require.Equal(t, 0, emailSender.sendCalls)
+}
+
+func newAuthUseCaseWithSessions(
+	userRepo *fakeUserRepository,
+	verificationRepo *fakeEmailVerificationRepository,
+	passwordHasher *fakePasswordHasher,
+	codeGenerator *fakeVerificationCodeGenerator,
+	emailSender *fakeEmailSender,
+	refreshRepo *fakeRefreshTokenRepository,
+	accessTokenService *fakeAccessTokenService,
+	refreshTokenService *fakeRefreshTokenService,
+) *usecase.AuthUseCase {
+	return usecase.NewAuthUseCase(
+		userRepo,
+		verificationRepo,
+		passwordHasher,
+		codeGenerator,
+		emailSender,
+		refreshRepo,
+		accessTokenService,
+		refreshTokenService,
+	)
+}
+
+func TestAuthUseCase_Login_Success(t *testing.T) {
+	userRepo := newFakeUserRepository()
+	user := &domain.User{
+		ID:            uuid.New(),
+		Email:         "user@example.com",
+		PasswordHash:  "hash:password123",
+		EmailVerified: true,
+	}
+	userRepo.users[user.Email] = user
+
+	passwordHasher := &fakePasswordHasher{}
+	refreshRepo := newFakeRefreshTokenRepository()
+	refreshService := &fakeRefreshTokenService{}
+
+	uc := newAuthUseCaseWithSessions(
+		userRepo,
+		&fakeEmailVerificationRepository{},
+		passwordHasher,
+		&fakeVerificationCodeGenerator{},
+		&fakeEmailSender{},
+		refreshRepo,
+		&fakeAccessTokenService{},
+		refreshService,
+	)
+
+	result, err := uc.Login(context.Background(), " USER@example.com ", "password123")
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Contains(t, result.AccessToken, "access:")
+	require.Equal(t, "refresh-token-1", result.RefreshToken)
+	require.Equal(t, int32(900), result.ExpiresIn)
+	require.Len(t, refreshRepo.sessions, 1)
+	require.Equal(t, 1, passwordHasher.compareCalls)
+	require.Equal(t, "hash:password123", passwordHasher.comparedHash)
+	require.Equal(t, "password123", passwordHasher.comparedPassword)
+}
+
+func TestAuthUseCase_Login_InvalidCredentials(t *testing.T) {
+	userRepo := newFakeUserRepository()
+	user := &domain.User{
+		ID:            uuid.New(),
+		Email:         "user@example.com",
+		PasswordHash:  "hash:password123",
+		EmailVerified: true,
+	}
+	userRepo.users[user.Email] = user
+
+	passwordHasher := &fakePasswordHasher{
+		compareErr: errors.New("password mismatch"),
+	}
+	refreshRepo := newFakeRefreshTokenRepository()
+
+	uc := newAuthUseCaseWithSessions(
+		userRepo,
+		&fakeEmailVerificationRepository{},
+		passwordHasher,
+		&fakeVerificationCodeGenerator{},
+		&fakeEmailSender{},
+		refreshRepo,
+		&fakeAccessTokenService{},
+		&fakeRefreshTokenService{},
+	)
+
+	result, err := uc.Login(context.Background(), "user@example.com", "wrong")
+
+	require.ErrorIs(t, err, domain.ErrInvalidCredentials)
+	require.Nil(t, result)
+	require.Empty(t, refreshRepo.sessions)
+}
+
+func TestAuthUseCase_Login_UnverifiedUser(t *testing.T) {
+	userRepo := newFakeUserRepository()
+	user := &domain.User{
+		ID:            uuid.New(),
+		Email:         "user@example.com",
+		PasswordHash:  "hash:password123",
+		EmailVerified: false,
+	}
+	userRepo.users[user.Email] = user
+
+	uc := newAuthUseCaseWithSessions(
+		userRepo,
+		&fakeEmailVerificationRepository{},
+		&fakePasswordHasher{},
+		&fakeVerificationCodeGenerator{},
+		&fakeEmailSender{},
+		newFakeRefreshTokenRepository(),
+		&fakeAccessTokenService{},
+		&fakeRefreshTokenService{},
+	)
+
+	result, err := uc.Login(context.Background(), "user@example.com", "password123")
+
+	require.ErrorIs(t, err, domain.ErrInvalidCredentials)
+	require.Nil(t, result)
+}
+
+func TestAuthUseCase_Refresh_RotatesToken(t *testing.T) {
+	userRepo := newFakeUserRepository()
+	user := &domain.User{
+		ID:            uuid.New(),
+		Email:         "user@example.com",
+		PasswordHash:  "hash:password123",
+		EmailVerified: true,
+	}
+	userRepo.users[user.Email] = user
+
+	refreshRepo := newFakeRefreshTokenRepository()
+	refreshService := &fakeRefreshTokenService{}
+
+	uc := newAuthUseCaseWithSessions(
+		userRepo,
+		&fakeEmailVerificationRepository{},
+		&fakePasswordHasher{},
+		&fakeVerificationCodeGenerator{},
+		&fakeEmailSender{},
+		refreshRepo,
+		&fakeAccessTokenService{},
+		refreshService,
+	)
+
+	loginResult, err := uc.Login(context.Background(), user.Email, "password123")
+	require.NoError(t, err)
+
+	refreshResult, err := uc.Refresh(context.Background(), loginResult.RefreshToken)
+	require.NoError(t, err)
+	require.NotNil(t, refreshResult)
+	require.Equal(t, "refresh-token-2", refreshResult.RefreshToken)
+	require.Len(t, refreshRepo.sessions, 2)
+
+	oldSession, ok := refreshRepo.sessions["hash-refresh-token-1"]
+	require.True(t, ok)
+	require.NotNil(t, oldSession.RevokedAt)
+}
+
+func TestAuthUseCase_LogoutRevokesRefreshToken(t *testing.T) {
+	userRepo := newFakeUserRepository()
+	user := &domain.User{
+		ID:            uuid.New(),
+		Email:         "user@example.com",
+		PasswordHash:  "hash:password123",
+		EmailVerified: true,
+	}
+	userRepo.users[user.Email] = user
+
+	refreshRepo := newFakeRefreshTokenRepository()
+	refreshService := &fakeRefreshTokenService{}
+
+	uc := newAuthUseCaseWithSessions(
+		userRepo,
+		&fakeEmailVerificationRepository{},
+		&fakePasswordHasher{},
+		&fakeVerificationCodeGenerator{},
+		&fakeEmailSender{},
+		refreshRepo,
+		&fakeAccessTokenService{},
+		refreshService,
+	)
+
+	loginResult, err := uc.Login(context.Background(), user.Email, "password123")
+	require.NoError(t, err)
+
+	require.NoError(t, uc.Logout(context.Background(), loginResult.RefreshToken))
+
+	session := refreshRepo.sessions["hash-refresh-token-1"]
+	require.NotNil(t, session.RevokedAt)
+
+	_, err = uc.Refresh(context.Background(), loginResult.RefreshToken)
+	require.ErrorIs(t, err, domain.ErrInvalidCredentials)
 }

@@ -14,10 +14,13 @@ import (
 type AuthUseCase struct {
 	userRepository         UserRepositoryInterface
 	verificationRepository EmailVerificationRepositoryInterface
+	refreshTokenRepository RefreshTokenRepositoryInterface
 
-	passwordHasher service.PasswordHasher
-	codeGenerator  service.VerificationCodeGenerator
-	emailSender    service.EmailSender
+	passwordHasher      service.PasswordHasher
+	codeGenerator       service.VerificationCodeGenerator
+	emailSender         service.EmailSender
+	accessTokenService  service.AccessTokenService
+	refreshTokenService service.RefreshTokenService
 }
 
 func NewAuthUseCase(
@@ -26,13 +29,19 @@ func NewAuthUseCase(
 	passwordHasher service.PasswordHasher,
 	codeGenerator service.VerificationCodeGenerator,
 	emailSender service.EmailSender,
+	refreshTokenRepository RefreshTokenRepositoryInterface,
+	accessTokenService service.AccessTokenService,
+	refreshTokenService service.RefreshTokenService,
 ) *AuthUseCase {
 	return &AuthUseCase{
 		userRepository:         userRepository,
 		verificationRepository: verificationRepository,
+		refreshTokenRepository: refreshTokenRepository,
 		passwordHasher:         passwordHasher,
 		codeGenerator:          codeGenerator,
 		emailSender:            emailSender,
+		accessTokenService:     accessTokenService,
+		refreshTokenService:    refreshTokenService,
 	}
 }
 
@@ -53,6 +62,22 @@ type AuthUseCaseInterface interface {
 		ctx context.Context,
 		verificationID uuid.UUID,
 	) (*ResendVerificationResult, error)
+
+	Login(
+		ctx context.Context,
+		email string,
+		password string,
+	) (*AuthResult, error)
+
+	Refresh(
+		ctx context.Context,
+		refreshToken string,
+	) (*AuthResult, error)
+
+	Logout(
+		ctx context.Context,
+		refreshToken string,
+	) error
 }
 
 type RegistrationResult struct {
@@ -66,12 +91,19 @@ type ResendVerificationResult struct {
 	RetryAfter     int32
 }
 
+type AuthResult struct {
+	AccessToken  string
+	RefreshToken string
+	ExpiresIn    int32
+}
+
 var _ AuthUseCaseInterface = (*AuthUseCase)(nil)
 
 const (
 	registrationVerificationTTL = 10 * time.Minute
 	verificationResendCooldown  = 60 * time.Second
 	maxVerificationAttempts     = 5
+	refreshTokenTTL             = 30 * 24 * time.Hour
 )
 
 func (u *AuthUseCase) Register(
@@ -271,4 +303,152 @@ func (u *AuthUseCase) VerifyRegistration(
 	}
 
 	return user, nil
+}
+
+func (u *AuthUseCase) Login(
+	ctx context.Context,
+	email string,
+	password string,
+) (*AuthResult, error) {
+	email = normalizeEmail(email)
+
+	user, err := u.userRepository.GetByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, domain.ErrUserNotFound) {
+			return nil, domain.ErrInvalidCredentials
+		}
+		return nil, err
+	}
+
+	if !user.EmailVerified {
+		return nil, domain.ErrInvalidCredentials
+	}
+
+	if err := u.passwordHasher.Compare(user.PasswordHash, password); err != nil {
+		return nil, domain.ErrInvalidCredentials
+	}
+
+	now := time.Now()
+	sessionID := uuid.New()
+	plainRefreshToken, refreshTokenHash, err := u.refreshTokenService.Generate()
+	if err != nil {
+		return nil, fmt.Errorf("generate refresh token: %w", err)
+	}
+
+	session := &domain.RefreshTokenSession{
+		ID:        sessionID,
+		UserID:    user.ID,
+		TokenHash: refreshTokenHash,
+		ExpiresAt: now.Add(refreshTokenTTL),
+		CreatedAt: now,
+	}
+
+	if err := u.refreshTokenRepository.Create(ctx, session); err != nil {
+		return nil, err
+	}
+
+	accessToken, err := u.accessTokenService.Generate(user.ID, session.ID, now)
+	if err != nil {
+		return nil, fmt.Errorf("generate access token: %w", err)
+	}
+
+	return &AuthResult{
+		AccessToken:  accessToken,
+		RefreshToken: plainRefreshToken,
+		ExpiresIn:    int32(u.accessTokenService.ExpiresIn().Seconds()),
+	}, nil
+}
+
+func (u *AuthUseCase) Refresh(
+	ctx context.Context,
+	refreshToken string,
+) (*AuthResult, error) {
+	if refreshToken == "" {
+		return nil, domain.ErrInvalidCredentials
+	}
+
+	oldSession, err := u.refreshTokenRepository.GetByTokenHash(
+		ctx,
+		u.refreshTokenService.Hash(refreshToken),
+	)
+	if err != nil {
+		return nil, domain.ErrInvalidCredentials
+	}
+
+	now := time.Now()
+	if oldSession.RevokedAt != nil || !now.Before(oldSession.ExpiresAt) {
+		return nil, domain.ErrInvalidCredentials
+	}
+
+	user, err := u.userRepository.GetByID(ctx, oldSession.UserID)
+	if err != nil {
+		if errors.Is(err, domain.ErrUserNotFound) {
+			return nil, domain.ErrInvalidCredentials
+		}
+		return nil, err
+	}
+
+	if !user.EmailVerified {
+		return nil, domain.ErrInvalidCredentials
+	}
+
+	newSessionID := uuid.New()
+	plainRefreshToken, refreshTokenHash, err := u.refreshTokenService.Generate()
+	if err != nil {
+		return nil, fmt.Errorf("generate refresh token: %w", err)
+	}
+
+	newSession := &domain.RefreshTokenSession{
+		ID:        newSessionID,
+		UserID:    user.ID,
+		TokenHash: refreshTokenHash,
+		ExpiresAt: now.Add(refreshTokenTTL),
+		CreatedAt: now,
+	}
+
+	if err := u.refreshTokenRepository.Rotate(
+		ctx,
+		oldSession.ID,
+		newSession,
+		now,
+	); err != nil {
+		return nil, err
+	}
+
+	accessToken, err := u.accessTokenService.Generate(user.ID, newSession.ID, now)
+	if err != nil {
+		return nil, fmt.Errorf("generate access token: %w", err)
+	}
+
+	return &AuthResult{
+		AccessToken:  accessToken,
+		RefreshToken: plainRefreshToken,
+		ExpiresIn:    int32(u.accessTokenService.ExpiresIn().Seconds()),
+	}, nil
+}
+
+func (u *AuthUseCase) Logout(
+	ctx context.Context,
+	refreshToken string,
+) error {
+	if refreshToken == "" {
+		return nil
+	}
+
+	session, err := u.refreshTokenRepository.GetByTokenHash(
+		ctx,
+		u.refreshTokenService.Hash(refreshToken),
+	)
+	if err != nil {
+		if errors.Is(err, domain.ErrInvalidCredentials) {
+			return nil
+		}
+		return err
+	}
+
+	if session.RevokedAt != nil {
+		return nil
+	}
+
+	return u.refreshTokenRepository.Revoke(ctx, session.ID, time.Now())
 }

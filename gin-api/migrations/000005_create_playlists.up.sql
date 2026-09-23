@@ -9,7 +9,7 @@ CREATE TABLE playlists (
 
     visibility TEXT NOT NULL DEFAULT 'private',
 
-    tracks TEXT[] NOT NULL DEFAULT '{}',
+   tracks TEXT[] NOT NULL DEFAULT '{}'::text[],
 
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
