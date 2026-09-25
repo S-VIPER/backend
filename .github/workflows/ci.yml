@@ -55,7 +55,3 @@ jobs:
       - name: Build backend image
         run: |
           docker build -t sviper-backend:test -f gin-api/Dockerfile gin-api
-
-      - name: Build seeder image
-        run: |
-          docker build -t sviper-seeder:test -f gin-api/Dockerfile.seeder gin-api
