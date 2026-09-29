@@ -37,6 +37,24 @@ type RefreshToken struct {
 	RevokedAt pgtype.Timestamptz
 }
 
+type Track struct {
+	ID                        string
+	Title                     string
+	Artist                    string
+	AlbumTitle                string
+	AlbumArtURL               string
+	Genre                     []string
+	Year                      int32
+	MusicBrainzReleaseID      string
+	MusicBrainzReleaseGroupID string
+	ObjectKey                 string
+	FileName                  string
+	ContentType               string
+	FileSize                  int64
+	CreatedAt                 pgtype.Timestamptz
+	UpdatedAt                 pgtype.Timestamptz
+}
+
 type User struct {
 	ID            pgtype.UUID
 	Email         string

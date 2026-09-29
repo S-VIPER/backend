@@ -2,11 +2,23 @@ package usecase
 
 import (
 	"context"
+	"io"
 	"time"
 
 	"github.com/S-VIPER/backend/gin-api/internal/domain"
 	"github.com/google/uuid"
 )
+
+type TrackStorageInterface interface {
+	PutObject(ctx context.Context, objectKey string, reader io.Reader, size int64, contentType string) error
+	DeleteObject(ctx context.Context, objectKey string) error
+	PresignGetObject(ctx context.Context, objectKey string, expires time.Duration) (string, error)
+}
+
+type MusicBrainzClientInterface interface {
+	SearchRecordings(ctx context.Context, artist, title string, limit int) ([]domain.TrackMetadataCandidate, error)
+	GetRecording(ctx context.Context, mbid string) (*domain.TrackMetadata, error)
+}
 
 type TrackRepositoryInterface interface {
 	Create(ctx context.Context, track *domain.Track) error

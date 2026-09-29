@@ -3,14 +3,16 @@ package domain
 import "errors"
 
 var (
-	ErrInvalidTrack       = errors.New("invalid track")
-	ErrInvalidTrackID     = errors.New("invalid track id")
-	ErrInvalidTrackTitle  = errors.New("invalid track title")
-	ErrInvalidTrackArtist = errors.New("invalid track artist")
-	ErrInvalidTrackURL    = errors.New("invalid track url")
-	ErrInvalidTrackYear   = errors.New("invalid track year")
-	ErrTrackNotFound      = errors.New("track not found")
-	ErrTrackAlreadyExists = errors.New("track already exists")
+	ErrInvalidTrack            = errors.New("invalid track")
+	ErrInvalidTrackID          = errors.New("invalid track id")
+	ErrInvalidTrackTitle       = errors.New("invalid track title")
+	ErrInvalidTrackArtist      = errors.New("invalid track artist")
+	ErrInvalidTrackURL         = errors.New("invalid track url")
+	ErrInvalidTrackYear        = errors.New("invalid track year")
+	ErrTrackNotFound           = errors.New("track not found")
+	ErrTrackAlreadyExists      = errors.New("track already exists")
+	ErrTrackContentUnavailable = errors.New("track content unavailable")
+	ErrMusicBrainzUnavailable  = errors.New("musicbrainz unavailable")
 )
 
 var (

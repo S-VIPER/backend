@@ -11,7 +11,7 @@ import (
 	"github.com/S-VIPER/backend/gin-api/internal/domain"
 	myPostgres "github.com/S-VIPER/backend/gin-api/internal/repository/postgres"
 	"github.com/S-VIPER/backend/gin-api/internal/usecase"
-	"github.com/gofrs/uuid"
+	"github.com/google/uuid"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"

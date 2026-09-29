@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"path"
@@ -150,21 +151,6 @@ type CreatePlaylistRequest struct {
 	Visibility *PlaylistVisibility `json:"visibility,omitempty"`
 }
 
-// CreateTrackRequest defines model for CreateTrackRequest.
-type CreateTrackRequest struct {
-	AlbumArtURL string   `json:"albumArtURL"`
-	AlbumTitle  string   `json:"albumTitle"`
-	Artist      string   `json:"artist"`
-	Genre       []string `json:"genre"`
-
-	// Id Example: track-001
-	Id         string `json:"id"`
-	PreviewURL string `json:"previewURL"`
-	Title      string `json:"title"`
-	Url        string `json:"url"`
-	Year       int    `json:"year"`
-}
-
 // ErrorResponse defines model for ErrorResponse.
 type ErrorResponse struct {
 	Error struct {
@@ -256,37 +242,46 @@ type ResendRegistrationVerificationRequest struct {
 
 // Track defines model for Track.
 type Track struct {
-	// AlbumArtURL Example: https://example.com/album.jpg
-	AlbumArtURL string `json:"albumArtURL"`
+	AlbumArtURL *string  `json:"albumArtURL,omitempty"`
+	AlbumTitle  string   `json:"albumTitle"`
+	Artist      string   `json:"artist"`
+	Genre       []string `json:"genre"`
 
-	// AlbumTitle Example: Album
-	AlbumTitle string `json:"albumTitle"`
+	// Id MusicBrainz recording MBID
+	Id    openapi_types.UUID `json:"id"`
+	Title string             `json:"title"`
+	Year  *int               `json:"year,omitempty"`
+}
 
-	// Artist Example: Artist
-	Artist string `json:"artist"`
+// TrackContentResponse defines model for TrackContentResponse.
+type TrackContentResponse struct {
+	Data struct {
+		ExpiresIn int32 `json:"expires_in"`
 
-	// Genre Example: ["Rock","Alternative"]
-	Genre []string `json:"genre"`
-
-	// Id Example: track-001
-	Id string `json:"id"`
-
-	// PreviewURL Example: https://example.com/preview.mp3
-	PreviewURL string `json:"previewURL"`
-
-	// Title Example: Song Title
-	Title string `json:"title"`
-
-	// Url Example: https://example.com/song.mp3
-	Url string `json:"url"`
-
-	// Year Example: 2025
-	Year int `json:"year"`
+		// Url Short-lived presigned URL to the private MinIO object
+		Url string `json:"url"`
+	} `json:"data"`
 }
 
 // TrackListResponse defines model for TrackListResponse.
 type TrackListResponse struct {
 	Data []Track `json:"data"`
+}
+
+// TrackMetadataCandidate defines model for TrackMetadataCandidate.
+type TrackMetadataCandidate struct {
+	AlbumTitle     *string             `json:"album_title,omitempty"`
+	Artist         string              `json:"artist"`
+	MusicbrainzId  openapi_types.UUID  `json:"musicbrainz_id"`
+	ReleaseGroupId *openapi_types.UUID `json:"release_group_id,omitempty"`
+	ReleaseId      *openapi_types.UUID `json:"release_id,omitempty"`
+	Score          int32               `json:"score"`
+	Title          string              `json:"title"`
+}
+
+// TrackMetadataSearchResponse defines model for TrackMetadataSearchResponse.
+type TrackMetadataSearchResponse struct {
+	Data []TrackMetadataCandidate `json:"data"`
 }
 
 // TrackResponse defines model for TrackResponse.
@@ -307,10 +302,17 @@ type UpdateTrackRequest struct {
 	AlbumTitle  string   `json:"albumTitle"`
 	Artist      string   `json:"artist"`
 	Genre       []string `json:"genre"`
-	PreviewURL  string   `json:"previewURL"`
 	Title       string   `json:"title"`
-	Url         string   `json:"url"`
 	Year        int      `json:"year"`
+}
+
+// UploadTrackRequest defines model for UploadTrackRequest.
+type UploadTrackRequest struct {
+	// File Audio file
+	File openapi_types.File `json:"file"`
+
+	// MusicbrainzId Selected MusicBrainz recording MBID
+	MusicbrainzId openapi_types.UUID `json:"musicbrainz_id"`
 }
 
 // UserResponse defines model for UserResponse.
@@ -329,7 +331,7 @@ type VerifyRegistrationRequest struct {
 type PlaylistId = string
 
 // TrackId defines model for TrackId.
-type TrackId = string
+type TrackId = openapi_types.UUID
 
 // BadRequest defines model for BadRequest.
 type BadRequest = ErrorResponse
@@ -343,11 +345,21 @@ type InternalServerError = ErrorResponse
 // NotFound defines model for NotFound.
 type NotFound = ErrorResponse
 
+// ServiceUnavailable defines model for ServiceUnavailable.
+type ServiceUnavailable = ErrorResponse
+
 // TooManyRequests defines model for TooManyRequests.
 type TooManyRequests = ErrorResponse
 
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = ErrorResponse
+
+// SearchTrackMetadataParams defines parameters for SearchTrackMetadata.
+type SearchTrackMetadataParams struct {
+	Artist string `form:"artist" json:"artist"`
+	Title  string `form:"title" json:"title"`
+	Limit  *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+}
 
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
@@ -373,8 +385,8 @@ type CreatePlaylistJSONRequestBody = CreatePlaylistRequest
 // UpdatePlaylistJSONRequestBody defines body for UpdatePlaylist for application/json ContentType.
 type UpdatePlaylistJSONRequestBody = UpdatePlaylistRequest
 
-// CreateTrackJSONRequestBody defines body for CreateTrack for application/json ContentType.
-type CreateTrackJSONRequestBody = CreateTrackRequest
+// UploadTrackMultipartRequestBody defines body for UploadTrack for multipart/form-data ContentType.
+type UploadTrackMultipartRequestBody = UploadTrackRequest
 
 // UpdateTrackJSONRequestBody defines body for UpdateTrack for application/json ContentType.
 type UpdateTrackJSONRequestBody = UpdateTrackRequest
@@ -420,9 +432,12 @@ type ServerInterface interface {
 	// GetAllTracks Get all tracks
 	// (GET /tracks)
 	GetAllTracks(c *gin.Context)
-	// CreateTrack Create track
-	// (POST /tracks)
-	CreateTrack(c *gin.Context)
+	// SearchTrackMetadata Search MusicBrainz recordings
+	// (GET /tracks/metadata/search)
+	SearchTrackMetadata(c *gin.Context, params SearchTrackMetadataParams)
+	// UploadTrack Upload a track
+	// (POST /tracks/upload)
+	UploadTrack(c *gin.Context)
 	// DeleteTrack Delete track
 	// (DELETE /tracks/{trackId})
 	DeleteTrack(c *gin.Context, trackId TrackId)
@@ -432,6 +447,9 @@ type ServerInterface interface {
 	// UpdateTrack Update track
 	// (PUT /tracks/{trackId})
 	UpdateTrack(c *gin.Context, trackId TrackId)
+	// GetTrackContent Get a temporary track content URL
+	// (GET /tracks/{trackId}/content)
+	GetTrackContent(c *gin.Context, trackId TrackId)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -627,7 +645,7 @@ func (siw *ServerInterfaceWrapper) RemoveTrackFromPlaylist(c *gin.Context) {
 	// ------------- Path parameter "trackId" -------------
 	var trackId TrackId
 
-	err = runtime.BindStyledParameterWithOptions("simple", "trackId", c.Param("trackId"), &trackId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "trackId", c.Param("trackId"), &trackId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter trackId: %w", err), http.StatusBadRequest)
 		return
@@ -661,7 +679,7 @@ func (siw *ServerInterfaceWrapper) AddTrackToPlaylist(c *gin.Context) {
 	// ------------- Path parameter "trackId" -------------
 	var trackId TrackId
 
-	err = runtime.BindStyledParameterWithOptions("simple", "trackId", c.Param("trackId"), &trackId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "trackId", c.Param("trackId"), &trackId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter trackId: %w", err), http.StatusBadRequest)
 		return
@@ -690,8 +708,38 @@ func (siw *ServerInterfaceWrapper) GetAllTracks(c *gin.Context) {
 	siw.Handler.GetAllTracks(c)
 }
 
-// CreateTrack operation middleware
-func (siw *ServerInterfaceWrapper) CreateTrack(c *gin.Context) {
+// SearchTrackMetadata operation middleware
+func (siw *ServerInterfaceWrapper) SearchTrackMetadata(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SearchTrackMetadataParams
+
+	// ------------- Required query parameter "artist" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "artist", c.Request.URL.Query(), &params.Artist, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter artist: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Required query parameter "title" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "title", c.Request.URL.Query(), &params.Title, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter title: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: "int32"})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
 
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
@@ -700,7 +748,20 @@ func (siw *ServerInterfaceWrapper) CreateTrack(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.CreateTrack(c)
+	siw.Handler.SearchTrackMetadata(c, params)
+}
+
+// UploadTrack operation middleware
+func (siw *ServerInterfaceWrapper) UploadTrack(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UploadTrack(c)
 }
 
 // DeleteTrack operation middleware
@@ -712,7 +773,7 @@ func (siw *ServerInterfaceWrapper) DeleteTrack(c *gin.Context) {
 	// ------------- Path parameter "trackId" -------------
 	var trackId TrackId
 
-	err = runtime.BindStyledParameterWithOptions("simple", "trackId", c.Param("trackId"), &trackId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "trackId", c.Param("trackId"), &trackId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter trackId: %w", err), http.StatusBadRequest)
 		return
@@ -737,7 +798,7 @@ func (siw *ServerInterfaceWrapper) GetTrackByID(c *gin.Context) {
 	// ------------- Path parameter "trackId" -------------
 	var trackId TrackId
 
-	err = runtime.BindStyledParameterWithOptions("simple", "trackId", c.Param("trackId"), &trackId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "trackId", c.Param("trackId"), &trackId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter trackId: %w", err), http.StatusBadRequest)
 		return
@@ -762,7 +823,7 @@ func (siw *ServerInterfaceWrapper) UpdateTrack(c *gin.Context) {
 	// ------------- Path parameter "trackId" -------------
 	var trackId TrackId
 
-	err = runtime.BindStyledParameterWithOptions("simple", "trackId", c.Param("trackId"), &trackId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "trackId", c.Param("trackId"), &trackId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
 	if err != nil {
 		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter trackId: %w", err), http.StatusBadRequest)
 		return
@@ -776,6 +837,31 @@ func (siw *ServerInterfaceWrapper) UpdateTrack(c *gin.Context) {
 	}
 
 	siw.Handler.UpdateTrack(c, trackId)
+}
+
+// GetTrackContent operation middleware
+func (siw *ServerInterfaceWrapper) GetTrackContent(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "trackId" -------------
+	var trackId TrackId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "trackId", c.Param("trackId"), &trackId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter trackId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetTrackContent(c, trackId)
 }
 
 // GinServerOptions provides options for the Gin server.
@@ -812,7 +898,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/auth/refresh", wrapper.Refresh)
 	router.POST(options.BaseURL+"/auth/logout", wrapper.Logout)
 	router.GET(options.BaseURL+"/tracks", wrapper.GetAllTracks)
-	router.POST(options.BaseURL+"/tracks", wrapper.CreateTrack)
+	router.GET(options.BaseURL+"/tracks/metadata/search", wrapper.SearchTrackMetadata)
+	router.POST(options.BaseURL+"/tracks/upload", wrapper.UploadTrack)
+	router.GET(options.BaseURL+"/tracks/:trackId/content", wrapper.GetTrackContent)
 	router.DELETE(options.BaseURL+"/tracks/:trackId", wrapper.DeleteTrack)
 	router.GET(options.BaseURL+"/tracks/:trackId", wrapper.GetTrackByID)
 	router.PUT(options.BaseURL+"/tracks/:trackId", wrapper.UpdateTrack)
@@ -831,6 +919,8 @@ type ConflictJSONResponse ErrorResponse
 type InternalServerErrorJSONResponse ErrorResponse
 
 type NotFoundJSONResponse ErrorResponse
+
+type ServiceUnavailableJSONResponse ErrorResponse
 
 type TooManyRequestsResponseHeaders struct {
 	RetryAfter *int32
@@ -1778,31 +1868,31 @@ func (response GetAllTracks500JSONResponse) VisitGetAllTracksResponse(w http.Res
 	return err
 }
 
-type CreateTrackRequestObject struct {
-	Body *CreateTrackJSONRequestBody
+type SearchTrackMetadataRequestObject struct {
+	Params SearchTrackMetadataParams
 }
 
-type CreateTrackResponseObject interface {
-	VisitCreateTrackResponse(w http.ResponseWriter) error
+type SearchTrackMetadataResponseObject interface {
+	VisitSearchTrackMetadataResponse(w http.ResponseWriter) error
 }
 
-type CreateTrack201JSONResponse TrackResponse
+type SearchTrackMetadata200JSONResponse TrackMetadataSearchResponse
 
-func (response CreateTrack201JSONResponse) VisitCreateTrackResponse(w http.ResponseWriter) error {
+func (response SearchTrackMetadata200JSONResponse) VisitSearchTrackMetadataResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
 		return err
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(201)
+	w.WriteHeader(200)
 	_, err := buf.WriteTo(w)
 	return err
 }
 
-type CreateTrack400JSONResponse struct{ BadRequestJSONResponse }
+type SearchTrackMetadata400JSONResponse struct{ BadRequestJSONResponse }
 
-func (response CreateTrack400JSONResponse) VisitCreateTrackResponse(w http.ResponseWriter) error {
+func (response SearchTrackMetadata400JSONResponse) VisitSearchTrackMetadataResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -1814,9 +1904,75 @@ func (response CreateTrack400JSONResponse) VisitCreateTrackResponse(w http.Respo
 	return err
 }
 
-type CreateTrack401JSONResponse struct{ UnauthorizedJSONResponse }
+type SearchTrackMetadata500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
 
-func (response CreateTrack401JSONResponse) VisitCreateTrackResponse(w http.ResponseWriter) error {
+func (response SearchTrackMetadata500JSONResponse) VisitSearchTrackMetadataResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SearchTrackMetadata503JSONResponse struct{ ServiceUnavailableJSONResponse }
+
+func (response SearchTrackMetadata503JSONResponse) VisitSearchTrackMetadataResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UploadTrackRequestObject struct {
+	Body *multipart.Reader
+}
+
+type UploadTrackResponseObject interface {
+	VisitUploadTrackResponse(w http.ResponseWriter) error
+}
+
+type UploadTrack201JSONResponse TrackResponse
+
+func (response UploadTrack201JSONResponse) VisitUploadTrackResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UploadTrack400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UploadTrack400JSONResponse) VisitUploadTrackResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UploadTrack401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UploadTrack401JSONResponse) VisitUploadTrackResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -1828,9 +1984,23 @@ func (response CreateTrack401JSONResponse) VisitCreateTrackResponse(w http.Respo
 	return err
 }
 
-type CreateTrack409JSONResponse struct{ ConflictJSONResponse }
+type UploadTrack404JSONResponse struct{ NotFoundJSONResponse }
 
-func (response CreateTrack409JSONResponse) VisitCreateTrackResponse(w http.ResponseWriter) error {
+func (response UploadTrack404JSONResponse) VisitUploadTrackResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UploadTrack409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UploadTrack409JSONResponse) VisitUploadTrackResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -1842,11 +2012,11 @@ func (response CreateTrack409JSONResponse) VisitCreateTrackResponse(w http.Respo
 	return err
 }
 
-type CreateTrack500JSONResponse struct {
+type UploadTrack500JSONResponse struct {
 	InternalServerErrorJSONResponse
 }
 
-func (response CreateTrack500JSONResponse) VisitCreateTrackResponse(w http.ResponseWriter) error {
+func (response UploadTrack500JSONResponse) VisitUploadTrackResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -1854,6 +2024,20 @@ func (response CreateTrack500JSONResponse) VisitCreateTrackResponse(w http.Respo
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UploadTrack503JSONResponse struct{ ServiceUnavailableJSONResponse }
+
+func (response UploadTrack503JSONResponse) VisitUploadTrackResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -2079,6 +2263,72 @@ func (response UpdateTrack500JSONResponse) VisitUpdateTrackResponse(w http.Respo
 	return err
 }
 
+type GetTrackContentRequestObject struct {
+	TrackId TrackId `json:"trackId"`
+}
+
+type GetTrackContentResponseObject interface {
+	VisitGetTrackContentResponse(w http.ResponseWriter) error
+}
+
+type GetTrackContent200JSONResponse TrackContentResponse
+
+func (response GetTrackContent200JSONResponse) VisitGetTrackContentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTrackContent400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response GetTrackContent400JSONResponse) VisitGetTrackContentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTrackContent404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetTrackContent404JSONResponse) VisitGetTrackContentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTrackContent500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetTrackContent500JSONResponse) VisitGetTrackContentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// Login Login user
@@ -2120,9 +2370,12 @@ type StrictServerInterface interface {
 	// GetAllTracks Get all tracks
 	// (GET /tracks)
 	GetAllTracks(ctx context.Context, request GetAllTracksRequestObject) (GetAllTracksResponseObject, error)
-	// CreateTrack Create track
-	// (POST /tracks)
-	CreateTrack(ctx context.Context, request CreateTrackRequestObject) (CreateTrackResponseObject, error)
+	// SearchTrackMetadata Search MusicBrainz recordings
+	// (GET /tracks/metadata/search)
+	SearchTrackMetadata(ctx context.Context, request SearchTrackMetadataRequestObject) (SearchTrackMetadataResponseObject, error)
+	// UploadTrack Upload a track
+	// (POST /tracks/upload)
+	UploadTrack(ctx context.Context, request UploadTrackRequestObject) (UploadTrackResponseObject, error)
 	// DeleteTrack Delete track
 	// (DELETE /tracks/{trackId})
 	DeleteTrack(ctx context.Context, request DeleteTrackRequestObject) (DeleteTrackResponseObject, error)
@@ -2132,6 +2385,9 @@ type StrictServerInterface interface {
 	// UpdateTrack Update track
 	// (PUT /tracks/{trackId})
 	UpdateTrack(ctx context.Context, request UpdateTrackRequestObject) (UpdateTrackResponseObject, error)
+	// GetTrackContent Get a temporary track content URL
+	// (GET /tracks/{trackId}/content)
+	GetTrackContent(ctx context.Context, request GetTrackContentRequestObject) (GetTrackContentResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx *gin.Context, request any) (any, error)
@@ -2571,30 +2827,56 @@ func (sh *strictHandler) GetAllTracks(ctx *gin.Context) {
 	}
 }
 
-// CreateTrack operation middleware
-func (sh *strictHandler) CreateTrack(ctx *gin.Context) {
-	var request CreateTrackRequestObject
+// SearchTrackMetadata operation middleware
+func (sh *strictHandler) SearchTrackMetadata(ctx *gin.Context, params SearchTrackMetadataParams) {
+	var request SearchTrackMetadataRequestObject
 
-	var body CreateTrackJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(ctx, err)
-		return
-	}
-	request.Body = &body
+	request.Params = params
 
 	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.CreateTrack(ctx, request.(CreateTrackRequestObject))
+		return sh.ssi.SearchTrackMetadata(ctx, request.(SearchTrackMetadataRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "CreateTrack")
+		handler = middleware(handler, "SearchTrackMetadata")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		sh.options.HandlerErrorFunc(ctx, err)
-	} else if validResponse, ok := response.(CreateTrackResponseObject); ok {
-		if err := validResponse.VisitCreateTrackResponse(ctx.Writer); err != nil {
+	} else if validResponse, ok := response.(SearchTrackMetadataResponseObject); ok {
+		if err := validResponse.VisitSearchTrackMetadataResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UploadTrack operation middleware
+func (sh *strictHandler) UploadTrack(ctx *gin.Context) {
+	var request UploadTrackRequestObject
+
+	if reader, err := ctx.Request.MultipartReader(); err != nil {
+		sh.options.RequestErrorHandlerFunc(ctx, err)
+		return
+	} else {
+		request.Body = reader
+	}
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.UploadTrack(ctx, request.(UploadTrackRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UploadTrack")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(UploadTrackResponseObject); ok {
+		if err := validResponse.VisitUploadTrackResponse(ctx.Writer); err != nil {
 			sh.options.ResponseErrorHandlerFunc(ctx, err)
 		}
 	} else if response != nil {
@@ -2687,55 +2969,88 @@ func (sh *strictHandler) UpdateTrack(ctx *gin.Context, trackId TrackId) {
 	}
 }
 
+// GetTrackContent operation middleware
+func (sh *strictHandler) GetTrackContent(ctx *gin.Context, trackId TrackId) {
+	var request GetTrackContentRequestObject
+
+	request.TrackId = trackId
+
+	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.GetTrackContent(ctx, request.(GetTrackContentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetTrackContent")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		sh.options.HandlerErrorFunc(ctx, err)
+	} else if validResponse, ok := response.(GetTrackContentResponseObject); ok {
+		if err := validResponse.VisitGetTrackContentResponse(ctx.Writer); err != nil {
+			sh.options.ResponseErrorHandlerFunc(ctx, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(ctx, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Base64 encoded, compressed with deflate, json marshaled OpenAPI spec.
 // Stored as a slice of fixed-width chunks rather than one concatenated
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"5Fzdc9u4Ef9XMOjN9IWxbCWXJn5THOWqVv4oRfsu9bgaiFxJuJAEA4BOdB797x0AJEWKoCjZlpJM3iwQ",
+	"H4vd335gsfAD9lmUsBhiKfDpA04IJxFI4PrXVUgWIRVyEKhfAQif00RSFuPT4huiAcSSTilw7GCqPiVE",
+	"zrGDYxKB+rWaxMEcPqeUQ4BPJU/BwcKfQ0TU7BGNhxDP5ByfnjhYLhI1VkhO4xleLh3sceJ/shFyngrq",
+	"v+OExn8hDj7jAY1n6Pzd4L2dHplNtImYKeMRkfgUpylVPdfJWarBImGxAM2odyRw4XMKQqpfPoslxPpP",
+	"kiQh9YkitfOnUPQ+lJb5hcMUn+K/dVZC6JivotPnnHE3W8QsWd33IL4nIQ0QzxZeOviMxdOQ+gckwgXB",
+	"Uu4D8vOllw4exBJ4TMIR8Hvgeo5DssUsjoReHYFefungCyY/sDQOvgFzYibRVK+9dLDiCvXhOib3hIZk",
+	"EsLhKOp/LTGH+oAkRAnjhNNwgdISRUrhGDsn8SLDtTgckR5jKCLxIke2wA6eAwkyo+SC5IsXvakEXjcG",
+	"F2k0AY7YFAnwWRwIRFRH9GVO/TmSc0B+SCGWKCJqfskXujFb6QhbjQCN5csudpSJolEa4dPjwiLQWMIM",
+	"uNrG0sHXMUnlnHH6FxwQZr1UzpUJNrOjwqqpntkkag3VrZhGmXrOEuCSGgtGfB+EGEv2CTRtaxbPwfA1",
+	"oRzEmMabeXNS540yllMOYr5hev1lbJofMMRqqlv8DggHju9sDmFlvW+r1K8vV6G9stJqXjb5E4zxOuNA",
+	"JOTerWTVSRBQxWASXpU4NyWhAGeNmcbTPGD4SqJE6Tc+X6DfGf/EUql4Rb7mrq57fOxsdn0OvqeCTmhI",
+	"5aINKjnVN6sR65zSpNn2XYVZDR+QW/Fqs8+CisAGFze94eD92O3/57o/8rBTtFwNex+HA2vTWLvqWutF",
+	"77yPHbz6femNP1xeX6jOnts7+3elpejWG7r93vuP4/4fg5E30hN7ffeiNxz3XffSLa2kJ1n/XSXGNHkD",
+	"b9ivtfZcr7of03ztDmttH/s9t6C6RuD1qO/WW2/67uDD4KznDS4vxtl06839P64Gbr/W7F1ejs97Fx/H",
+	"Pc/rn1/Vp3N7Xn88HJwPPD34+qJ37f3z0h38t1/e/Jnbf9+/8Aa94UhBZoVmq0hquI1ACDJbU4Q8Giz5",
+	"xDbl1hhbTVcH71p/A1UbxodsRuPHqTREhIYVy2daKtr8slvV5l8tXEmIEF8YDypzFY2V6U66byrTvWnj",
+	"VE5SMV0DE1j6SMNWs+NtUXuZuupgG2nnRsTNViggktRbrUDTYT4iQQABkgzluGtF29Yw07TYdpFb4Tqh",
+	"dOtz1Gofr1/7byb/gO7kGN76r8kb/y3pBifdlzaNy/1Owwr6s/NMXknzV9RX0+e00maEOhpIQmMIEI11",
+	"tFWSRUHLrZnwxfHxCXaKv7uKwVRCJOxBg2kgnJPFs3tKffDLWJZtdpO020G7DT27o+ymsufcDyec3hOp",
+	"SE/SSUh9SwjlYNco5HdpClyYUSGB/+zWesWHxsjsKYH5PXA6zU4OYxpsk/uobmJ9gkqw3bwhrgfclAbv",
+	"aYP6jDcm+WlxpzPdvtlTpc7OLAFx0Myyx+jGs+/JRrj2ApZTZjhJox6XKkaurMupzZ/p7h6VJkVS/8xl",
+	"5mbLWr2F75pBzPWU27sWumvmsYWnDpb5vnYkfgGEZ8MMcrsn2ajm5ITFs5nlCyZWmJ1zqFGyZyaxsWug",
+	"9iRNTnlYF8Fozrh8EdJ7CFDCQdCZijOu3aGK+XSsYRwhOqfx4BJl23BakLfGL7Vyi13b1mtr7g23ChcK",
+	"bG6KG4ye1fC6EznnIInqcUbigAYqarDr7VhuoYn1U6BSkolWku2sjSI9BCJgPOMsTXYdtGV34TNjAuoo",
+	"zPWqVa1KOtxypqjywKJ8hpxWEY2AcH/+nNipC/9pYHpaGJzBedsVr5NgD7k6M2vwvSfsDJkZ0x+z8x/X",
+	"GX8717nZa5Y5mm8sW9UuwZCRYF2CVSFNaWg50vfSgDKkv5V82YTGhC+sqbiaEV5zoxCCrzD/lJCmzehp",
+	"cq18EBvPN41nudo2HxPNmqBcz2ijTcfbi3IE/jhlyxPlCZESuOL5/26PX7y9e3i9/MW2lT2cPDQJ1tBF",
+	"gJ9yKhcjZZYMvRN989JLlSrlvz7kBPzrdy+/KVMzma8riuZSJuaiisZTVkeb2x95qHc1QFPG0ejFzeCq",
+	"7yINl/xesnCRpzj/3rsaYM0WYSY5OTo+OlacYgnEJKH4FL88Oj56qQ/Ucq430SGpnHdCNjMBZ8KM2Bqv",
+	"z0AgggzjIECpAI5IHCBfXwkJRGJESp0DJEAoao6wpsLAYxDgU5NozioMQMh3LFg8231gJYm9rIpd8hTW",
+	"axO6x8fPtnblDrH9KlKk+l5umoZKUK8MIbb5C4I7pUoKPeSkfUjl1nXp4F+3WcdWo1BWBXx6e+dgkUaR",
+	"MqmZRDUkFDbJTCgd0+pxp4YVSFMBQyPUXLhnn0Dog4lIlRQgQFkuDOlcmBVKJgjZE5ZKdwFbgelVfVtD",
+	"NptBgBSZjxPzviTGUtkmsoz7G2TGpFZ+UyZQEpU2DRxkymNlNmL4gsw1dPY5IZTXxZnlXPckz7WM7ndm",
+	"HTzFF5Fz0SjrD20UMnZX5L4RayaX2wy2s9zToARiHXrxUuShESdAV7Wgsn9HyrXnGQ8F+L8LpEMaG/4y",
+	"GvYFwGrafisEdvew/KaqrBJHhSRceXLF2TpHhSLosSB92z7krFQ096q7xYD1mqx9AXuk2GICoDIAt8C2",
+	"WhRMkZ0d4qMMv8pe1jmuIkI7+G1Q3pQc3xvAt8nIfxPYb7hTsajBzfOi/VX7kKIA83tDu5Fp1dTWoLkN",
+	"9vWgRTP2Dc+zYEIbaESCgCvfkQoFeF2gmMsCBSlv14L6AXVPyG8+CW+F9pNnI6SSLrAg+3pltoBntt0w",
+	"Oz/aHQzlP7QTMAI3XsDwzwJIu1rkFR6irAtV3FbrLPeEWXsx54HxWqsQsWC2qNExuYaDhsY7o/RpaCvw",
+	"ZYRTqczKkHRVwGcNTp2H1WuSpbGvIZgLqyq63uv2CrraTrGFCMycBxbBjpblmURg2NQmAgfPwJrNMGff",
+	"oqSTfYkhQBNTUl/NlCkjUvddv4HM13m30CnmvZ1Nd1HCQ7mHvVjt30CuJDJZIM1Wu1TLj71u7XSsunRK",
+	"j8GWdw5OUotRr17I7cmo22/9Dpzr2Mmop+ZG8WewKEY4jzfqHVNq2XnInulttPIuROzeXIF+4Czaydyb",
+	"OlWuZwjQlLNoRfRPICfDOmSqpKu7f35z4bT2zl93astijRd7gbkp9VizmJ9Pvdcr0W3ZzIYC858APL0g",
+	"yJCzVlnfoOqrWvEskKiFAb0w9EynPQq1XnzVJFaxV/dMwhDJfLc5z7J1ywzrRFlxTkfoup8SA9dzauoz",
+	"iMr1/WSBTJWCPgDr69Qj5K1eQPpzxoTONVcv+tEEpowDSnV1Qp6VIEXFQT2MM8tXyolwzVzol9ifU9AF",
+	"CtlT7KKKYsOz8F0qPJShsa2TV23seZmQRlRWnpAGMCVpKPHpybGzodKs++vm4kdlFferFQ0FZhb9sFeI",
+	"+Hn5mDj4FaAa+7J9rOXZ9cYMuGaEvR6mTW2N5jSnAU3dj8h0SpnQrEjVlGQgIRknM8ieLpceLQtdpqNU",
+	"trlOp66epTKjjRF5lIaSJoTLjkLqi7xeb9ugvFbLdOA0S7X8sNFhf5MEy77zht9Me0pxv5I/IsaxtSjI",
+	"VsG9yU2sYLtdQP/zJW8aGe40Rlu6y74zLtvp4w+fazFx8HqipSSE3Y5NlYNQc4ql3Zo/Nb+yuyk/NHR+",
+	"wrTKTsa1U5LFxgQuQaLpGY05MZQfzyAqBYRTxCEiNBZ57GJN7pbfCu3d1Ky/SbIl5IqtGa29doc/vP0h",
+	"xf/wWWS7yliKTBX6M1qkNVKqRcK3d8pkmX+6ZOZdKw29GqD7E5y948IdktDO/Ym2cxmJjRcyBa7E6qy1",
+	"SjGo05jNOthGFYf7h82Fq7axepvLu+X/AwAA//8=",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

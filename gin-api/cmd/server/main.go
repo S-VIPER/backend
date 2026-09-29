@@ -11,39 +11,24 @@ import (
 	"github.com/S-VIPER/backend/gin-api/internal/delivery/http/api"
 	"github.com/S-VIPER/backend/gin-api/internal/delivery/http/handler"
 	"github.com/S-VIPER/backend/gin-api/internal/delivery/http/middleware"
-	"github.com/S-VIPER/backend/gin-api/internal/repository/mongodb"
+	"github.com/S-VIPER/backend/gin-api/internal/repository/musicbrainz"
 	"github.com/S-VIPER/backend/gin-api/internal/repository/postgres"
+	"github.com/S-VIPER/backend/gin-api/internal/repository/rustfs"
 	"github.com/S-VIPER/backend/gin-api/internal/service/email"
 	"github.com/S-VIPER/backend/gin-api/internal/service/password"
 	"github.com/S-VIPER/backend/gin-api/internal/service/token"
 	"github.com/S-VIPER/backend/gin-api/internal/service/verification"
 	"github.com/S-VIPER/backend/gin-api/internal/usecase"
-
 	"github.com/gin-gonic/gin"
-
 	"github.com/jackc/pgx/v5/pgxpool"
-	mongodriver "go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func main() {
-	ctx, cancel := context.WithTimeout(
-		context.Background(),
-		10*time.Second,
-	)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	postgresURL := os.Getenv("POSTGRES_URI")
-	if postgresURL == "" {
-		log.Fatal("POSTGRES_URI environment variable is not set")
-	}
-
-	mongodbURI := requiredEnv("MONGODB_URI")
+	postgresURL := requiredEnv("POSTGRES_URI")
 	jwtSecret := requiredEnv("JWT_SECRET")
-
-	// -------------------------------------------------------------------------
-	// PostgreSQL
-	// -------------------------------------------------------------------------
 
 	pgPool, err := pgxpool.New(ctx, postgresURL)
 	if err != nil {
@@ -54,53 +39,40 @@ func main() {
 	if err := pgPool.Ping(ctx); err != nil {
 		log.Fatalf("failed to ping PostgreSQL: %v", err)
 	}
-
 	log.Println("connected to PostgreSQL")
 
 	userRepo := postgres.NewUserRepository(pgPool)
 	verificationRepo := postgres.NewEmailVerificationRepository(pgPool)
 	refreshTokenRepo := postgres.NewRefreshTokenRepository(pgPool)
 	playlistRepo := postgres.NewPlaylistRepository(pgPool)
+	trackRepo := postgres.NewTrackRepository(pgPool)
 
-	// -------------------------------------------------------------------------
-	// MongoDB
-	// -------------------------------------------------------------------------
-
-	mongoClient, err := mongodriver.Connect(
-		ctx,
-		options.Client().ApplyURI(mongodbURI),
-	)
+	trackStorage, err := rustfs.NewTrackStorage(rustfs.Config{
+		Endpoint:       requiredEnv("RUSTFS_ENDPOINT"),
+		PublicEndpoint: requiredEnv("RUSTFS_PUBLIC_ENDPOINT"),
+		AccessKey:      requiredEnv("RUSTFS_ACCESS_KEY"),
+		SecretKey:      requiredEnv("RUSTFS_SECRET_KEY"),
+		Bucket:         requiredEnv("RUSTFS_BUCKET"),
+		Region:         os.Getenv("RUSTFS_REGION"),
+	})
 	if err != nil {
-		log.Fatalf("failed to connect to MongoDB: %v", err)
+		log.Fatalf("failed to configure RustFS: %v", err)
 	}
-	defer func() {
-		disconnectCtx, disconnectCancel := context.WithTimeout(
-			context.Background(),
-			5*time.Second,
-		)
-		defer disconnectCancel()
-
-		if err := mongoClient.Disconnect(disconnectCtx); err != nil {
-			log.Printf("failed to disconnect MongoDB: %v", err)
-		}
-	}()
-
-	if err := mongoClient.Ping(ctx, nil); err != nil {
-		log.Fatalf("failed to ping MongoDB: %v", err)
+	if err := trackStorage.EnsureBucket(ctx); err != nil {
+		log.Fatalf("failed to initialize RustFS bucket: %v", err)
 	}
+	log.Println("connected to RustFS")
 
-	mongoDB := mongoClient.Database("sviper")
-
-	log.Println("connected to MongoDB")
-
-	trackRepo := mongodb.NewTrackRepository(mongoDB)
-
-	// -------------------------------------------------------------------------
-	// Auth dependencies
-	// -------------------------------------------------------------------------
+	musicBrainzClient, err := musicbrainz.NewClient(musicbrainz.Config{
+		BaseURL:     os.Getenv("MUSICBRAINZ_BASE_URL"),
+		UserAgent:   requiredEnv("MUSICBRAINZ_USER_AGENT"),
+		MinInterval: time.Second,
+	})
+	if err != nil {
+		log.Fatalf("failed to configure MusicBrainz client: %v", err)
+	}
 
 	passwordHasher := password.NewArgon2Hasher()
-
 	codeGenerator := verification.NewCodeGenerator()
 	accessTokenService := token.NewJWTService(
 		jwtSecret,
@@ -110,24 +82,17 @@ func main() {
 	)
 	refreshTokenService := token.NewRefreshTokenService()
 
-	// SMTP/provider.
-	smtpHost := os.Getenv("SMTP_HOST")
-	smtpPortStr := os.Getenv("SMTP_PORT")
-	smtpUsername := os.Getenv("SMTP_USERNAME")
-	smtpPassword := os.Getenv("SMTP_PASSWORD")
-	smtpFrom := os.Getenv("SMTP_FROM")
-
-	smtpPort, err := strconv.Atoi(smtpPortStr)
+	smtpPort, err := strconv.Atoi(requiredEnv("SMTP_PORT"))
 	if err != nil {
 		log.Fatalf("invalid SMTP_PORT: %v", err)
 	}
 
 	emailSender := email.NewSMTPSender(email.SMTPConfig{
-		Host:     smtpHost,
+		Host:     requiredEnv("SMTP_HOST"),
 		Port:     smtpPort,
-		Username: smtpUsername,
-		Password: smtpPassword,
-		From:     smtpFrom,
+		Username: os.Getenv("SMTP_USERNAME"),
+		Password: os.Getenv("SMTP_PASSWORD"),
+		From:     requiredEnv("SMTP_FROM"),
 	})
 
 	authUseCase := usecase.NewAuthUseCase(
@@ -141,23 +106,37 @@ func main() {
 		refreshTokenService,
 	)
 
-	// -------------------------------------------------------------------------
-	// Use cases
-	// -------------------------------------------------------------------------
+	trackMaxUploadSize := int64(usecase.DefaultTrackMaxUploadSize)
+	if raw := os.Getenv("MAX_TRACK_UPLOAD_SIZE"); raw != "" {
+		parsed, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || parsed <= 0 {
+			log.Fatalf("invalid MAX_TRACK_UPLOAD_SIZE: %q", raw)
+		}
+		trackMaxUploadSize = parsed
+	}
 
-	trackUseCase := usecase.NewTrackUseCase(trackRepo)
+	trackContentURLTTL := usecase.DefaultTrackContentURLTTL
+	if raw := os.Getenv("TRACK_CONTENT_URL_TTL"); raw != "" {
+		parsed, err := time.ParseDuration(raw)
+		if err != nil || parsed <= 0 {
+			log.Fatalf("invalid TRACK_CONTENT_URL_TTL: %q", raw)
+		}
+		trackContentURLTTL = parsed
+	}
+
+	trackUseCase := usecase.NewTrackUseCase(
+		trackRepo,
+		trackStorage,
+		musicBrainzClient,
+	).WithMaxUploadSize(trackMaxUploadSize).WithContentURLTTL(trackContentURLTTL)
 
 	playlistUseCase := usecase.NewPlaylistUseCase(
 		playlistRepo,
 		trackRepo,
 	)
 
-	// -------------------------------------------------------------------------
-	// Handlers
-	// -------------------------------------------------------------------------
-
 	authHandler := handler.NewAuthHandler(authUseCase)
-	trackHandler := handler.NewTrackHandler(trackUseCase)
+	trackHandler := handler.NewTrackHandler(trackUseCase).WithMaxUploadSize(trackMaxUploadSize)
 	playlistHandler := handler.NewPlaylistHandler(playlistUseCase)
 
 	httpHandler := handler.NewHandler(
@@ -166,11 +145,9 @@ func main() {
 		trackHandler,
 	)
 
-	// -------------------------------------------------------------------------
-	// HTTP
-	// -------------------------------------------------------------------------
-
 	router := gin.Default()
+	router.MaxMultipartMemory = 32 << 20
+
 	authMiddleware := middleware.NewJWTMiddleware(accessTokenService)
 
 	strictHandler := api.NewStrictHandlerWithOptions(
@@ -197,31 +174,20 @@ func main() {
 		Addr:              ":8080",
 		Handler:           router,
 		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       15 * time.Second,
+		ReadTimeout:       10 * time.Minute,
 		WriteTimeout:      15 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
 
-	if err := server.ListenAndServe(); err != nil &&
-		err != http.ErrServerClosed {
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("server failed: %v", err)
 	}
-
 }
-
-// -----------------------------------------------------------------------------
-// Env
-// -----------------------------------------------------------------------------
 
 func requiredEnv(name string) string {
 	value := os.Getenv(name)
-
 	if value == "" {
-		log.Fatalf(
-			"%s environment variable is not set",
-			name,
-		)
+		log.Fatalf("%s environment variable is not set", name)
 	}
-
 	return value
 }

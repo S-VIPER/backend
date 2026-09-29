@@ -121,7 +121,7 @@ func (h *PlaylistHandler) AddTrackToPlaylist(
 		ctx,
 		ownerID,
 		request.PlaylistId,
-		request.TrackId,
+		request.TrackId.String(),
 	); err != nil {
 		return nil, err
 	}
@@ -148,7 +148,7 @@ func (h *PlaylistHandler) RemoveTrackFromPlaylist(
 		ctx,
 		ownerID,
 		request.PlaylistId,
-		request.TrackId,
+		request.TrackId.String(),
 	); err != nil {
 		return nil, err
 	}

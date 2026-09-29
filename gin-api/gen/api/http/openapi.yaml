@@ -192,33 +192,6 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 
   /tracks:
-    post:
-      tags:
-        - Tracks
-      operationId: createTrack
-      summary: Create track
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateTrackRequest'
-      responses:
-        '201':
-          description: Track created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TrackResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
     get:
       tags:
         - Tracks
@@ -232,6 +205,109 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TrackListResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /tracks/metadata/search:
+    get:
+      tags:
+        - Tracks
+      operationId: searchTrackMetadata
+      summary: Search MusicBrainz recordings
+      description: Searches MusicBrainz by artist and title. The client chooses a recording MBID before uploading the audio file.
+      security: []
+      parameters:
+        - name: artist
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 300
+        - name: title
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 300
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 25
+            default: 10
+      responses:
+        '200':
+          description: MusicBrainz recording candidates
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrackMetadataSearchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /tracks/upload:
+    post:
+      tags:
+        - Tracks
+      operationId: uploadTrack
+      summary: Upload a track
+      description: Uploads audio to private object storage after the client selects a MusicBrainz recording MBID.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UploadTrackRequest'
+      responses:
+        '201':
+          description: Track created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrackResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /tracks/{trackId}/content:
+    parameters:
+      - $ref: '#/components/parameters/TrackId'
+    get:
+      tags:
+        - Tracks
+      operationId: getTrackContent
+      summary: Get a temporary track content URL
+      description: Returns a short-lived presigned URL. The MinIO object itself remains private.
+      security: []
+      responses:
+        '200':
+          description: Presigned track URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrackContentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -464,10 +540,10 @@ components:
       name: trackId
       in: path
       required: true
-      description: Track identifier
+      description: MusicBrainz recording MBID
       schema:
         type: string
-        minLength: 1
+        format: uuid
 
   schemas:
     RegisterRequest:
@@ -629,115 +705,115 @@ components:
         - id
         - title
         - artist
-        - url
         - albumTitle
-        - albumArtURL
-        - previewURL
         - genre
-        - year
       properties:
         id:
           type: string
-          example: "track-001"
+          format: uuid
+          description: MusicBrainz recording MBID
 
         title:
           type: string
           minLength: 1
           maxLength: 300
-          example: "Song Title"
 
         artist:
           type: string
           minLength: 1
           maxLength: 300
-          example: "Artist"
-
-        url:
-          type: string
-          format: uri
-          example: "https://example.com/song.mp3"
 
         albumTitle:
           type: string
-          example: "Album"
 
         albumArtURL:
           type: string
           format: uri
-          example: "https://example.com/album.jpg"
-
-        previewURL:
-          type: string
-          format: uri
-          example: "https://example.com/preview.mp3"
 
         genre:
           type: array
           items:
             type: string
-          example:
-            - Rock
-            - Alternative
 
         year:
           type: integer
-          minimum: 1900
+          minimum: 0
           maximum: 2100
           example: 2025
 
-    CreateTrackRequest:
+    UploadTrackRequest:
       type: object
-      additionalProperties: false
       required:
-        - id
+        - musicbrainz_id
+        - file
+      properties:
+        musicbrainz_id:
+          type: string
+          format: uuid
+          description: Selected MusicBrainz recording MBID
+        file:
+          type: string
+          format: binary
+          description: Audio file
+
+    TrackContentResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: object
+          required:
+            - url
+            - expires_in
+          properties:
+            url:
+              type: string
+              format: uri
+              description: Short-lived presigned URL to the private S3 object
+            expires_in:
+              type: integer
+              format: int32
+              minimum: 1
+
+    TrackMetadataCandidate:
+      type: object
+      required:
+        - musicbrainz_id
         - title
         - artist
-        - url
-        - albumTitle
-        - albumArtURL
-        - previewURL
-        - genre
-        - year
+        - score
       properties:
-        id:
+        musicbrainz_id:
           type: string
-          minLength: 1
-          example: "track-001"
-
+          format: uuid
         title:
           type: string
-          minLength: 1
-          maxLength: 300
-
         artist:
           type: string
-          minLength: 1
-          maxLength: 300
-
-        url:
+        album_title:
           type: string
-          format: uri
-
-        albumTitle:
+        release_id:
           type: string
-
-        albumArtURL:
+          format: uuid
+        release_group_id:
           type: string
-          format: uri
+          format: uuid
+        score:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 100
 
-        previewURL:
-          type: string
-          format: uri
-
-        genre:
+    TrackMetadataSearchResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
           type: array
           items:
-            type: string
-
-        year:
-          type: integer
-          minimum: 1900
-          maximum: 2100
+            $ref: '#/components/schemas/TrackMetadataCandidate'
 
     UpdateTrackRequest:
       type: object
@@ -745,10 +821,8 @@ components:
       required:
         - title
         - artist
-        - url
         - albumTitle
         - albumArtURL
-        - previewURL
         - genre
         - year
       properties:
@@ -756,35 +830,22 @@ components:
           type: string
           minLength: 1
           maxLength: 300
-
         artist:
           type: string
           minLength: 1
           maxLength: 300
-
-        url:
-          type: string
-          format: uri
-
         albumTitle:
           type: string
-
         albumArtURL:
           type: string
           format: uri
-
-        previewURL:
-          type: string
-          format: uri
-
         genre:
           type: array
           items:
             type: string
-
         year:
           type: integer
-          minimum: 1900
+          minimum: 0
           maximum: 2100
 
     TrackResponse:
@@ -967,6 +1028,13 @@ components:
 
     InternalServerError:
       description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    ServiceUnavailable:
+      description: External service temporarily unavailable
       content:
         application/json:
           schema:

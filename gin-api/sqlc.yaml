@@ -9,3 +9,7 @@ sql:
         package: "db"
         out: "gen/db"
         sql_package: "pgx/v5"
+        rename:
+          album_art_url: "AlbumArtURL"
+          musicbrainz_release_id: "MusicBrainzReleaseID"
+          musicbrainz_release_group_id: "MusicBrainzReleaseGroupID"

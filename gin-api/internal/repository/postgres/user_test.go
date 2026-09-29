@@ -10,9 +10,9 @@ import (
 	"github.com/S-VIPER/backend/gin-api/internal/domain"
 	myPostgres "github.com/S-VIPER/backend/gin-api/internal/repository/postgres"
 	"github.com/S-VIPER/backend/gin-api/internal/usecase"
-	"github.com/gofrs/uuid"
 	"github.com/golang-migrate/migrate/v4"
 	migrateDriver "github.com/golang-migrate/migrate/v4/database/pgx/v5"
+	"github.com/google/uuid"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
