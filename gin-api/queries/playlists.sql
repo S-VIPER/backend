@@ -26,6 +26,16 @@ RETURNING
     created_at,
     updated_at;
 
+
+-- name: GetPlaylistListForUser :many
+SELECT 
+    id,
+    owner_id,
+    name,
+    visibility
+    FROM playlists
+WHERE owner_id = $1 or visibility = 'public';
+
 -- name: GetPlaylistByID :one
 SELECT
     id,

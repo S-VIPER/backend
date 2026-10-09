@@ -130,6 +130,48 @@ func (q *Queries) GetPlaylistByID(ctx context.Context, id pgtype.UUID) (Playlist
 	return i, err
 }
 
+const getPlaylistListForUser = `-- name: GetPlaylistListForUser :many
+SELECT 
+    id,
+    owner_id,
+    name,
+    visibility
+    FROM playlists
+WHERE owner_id = $1 or visibility = 'public'
+`
+
+type GetPlaylistListForUserRow struct {
+	ID         pgtype.UUID
+	OwnerID    pgtype.UUID
+	Name       string
+	Visibility string
+}
+
+func (q *Queries) GetPlaylistListForUser(ctx context.Context, ownerID pgtype.UUID) ([]GetPlaylistListForUserRow, error) {
+	rows, err := q.db.Query(ctx, getPlaylistListForUser, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPlaylistListForUserRow
+	for rows.Next() {
+		var i GetPlaylistListForUserRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.Name,
+			&i.Visibility,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const removeTrackFromPlaylist = `-- name: RemoveTrackFromPlaylist :exec
 UPDATE playlists
 SET
