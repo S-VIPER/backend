@@ -260,7 +260,9 @@ paths:
         - Tracks
       operationId: uploadTrack
       summary: Upload a track
-      description: Uploads audio to private object storage after the client selects a MusicBrainz recording MBID.
+      description: | 
+        Uploads audio to private object storage after the client selects a MusicBrainz recording MBID.
+        Two mods: 1. Client side metadata load. 2. Client provides only MBID and file.
       requestBody:
         required: true
         content:
@@ -755,6 +757,38 @@ components:
           type: string
           format: binary
           description: Audio file
+        title:
+          type: string
+          minLength: 1
+          maxLength: 300
+        artist:
+          type: string
+          minLength: 1
+          maxLength: 300
+        album_title:
+          type: string
+          minLength: 1
+          maxLength: 300
+        score:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 100
+        genre:
+          type: array
+          items:
+            type: string
+        year:
+          type: integer
+          minimum: 0
+          maximum: 2100
+        release_id:
+          type: string
+          format: uuid
+          description: MusicBrainz album release id
+        release_group_id:
+          type: string
+          format: uuid
 
     TrackContentResponse:
       type: object
