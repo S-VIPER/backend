@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"mime/multipart"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/S-VIPER/backend/gin-api/internal/delivery/http/api"
@@ -137,8 +139,14 @@ func parseTrackMultipart(
 	}
 
 	cleanup := func() {
-		_ = tempFile.Close()
-		_ = os.Remove(tempFile.Name())
+		err = tempFile.Close()
+		if err != nil {
+			log.Printf("[WARN] file didn't close = %s", err.Error())
+		}
+		err = os.Remove(tempFile.Name())
+		if err != nil {
+			log.Printf("[WARN] file didn't remove = %s", err.Error())
+		}
 	}
 
 	var (
@@ -148,6 +156,8 @@ func parseTrackMultipart(
 		fileSize      int64
 		fileSeen      bool
 	)
+
+	trackMetadata := &usecase.TrackUploadMetadata{}
 
 	for {
 		part, nextErr := reader.NextPart()
@@ -160,6 +170,77 @@ func parseTrackMultipart(
 		}
 
 		switch part.FormName() {
+		case "title":
+			value, err := io.ReadAll(io.LimitReader(part, 300*4))
+			if err != nil {
+				cleanup()
+				return usecase.TrackUpload{}, func() {}, fmt.Errorf("read title")
+			}
+			trackMetadata.Title = strings.TrimSpace(string(value))
+		case "artist":
+			value, err := io.ReadAll(io.LimitReader(part, 300*4))
+			if err != nil {
+				cleanup()
+				return usecase.TrackUpload{}, func() {}, fmt.Errorf("read artist")
+			}
+			trackMetadata.Artist = strings.TrimSpace(string(value))
+		case "album_title":
+			value, err := io.ReadAll(io.LimitReader(part, 300*4))
+			if err != nil {
+				cleanup()
+				return usecase.TrackUpload{}, func() {}, fmt.Errorf("read album_title")
+			}
+			trackMetadata.AlbumTitle = strings.TrimSpace(string(value))
+		case "score":
+			value, err := io.ReadAll(io.LimitReader(part, 16))
+			if err != nil {
+				cleanup()
+				return usecase.TrackUpload{}, func() {}, fmt.Errorf("read score")
+			}
+			s := strings.TrimSpace(string(value))
+			parsed, err := strconv.ParseInt(s, 10, 32)
+			if err != nil {
+				cleanup()
+				return usecase.TrackUpload{}, func() {}, fmt.Errorf("parse score")
+
+			}
+			score := int(parsed)
+			trackMetadata.Score = score
+		case "genre":
+			value, err := io.ReadAll(io.LimitReader(part, 256))
+			if err != nil {
+				cleanup()
+				return usecase.TrackUpload{}, func() {}, fmt.Errorf("read title")
+			}
+			trackMetadata.Genre = append(trackMetadata.Genre, strings.TrimSpace(string(value)))
+		case "year":
+			value, err := io.ReadAll(io.LimitReader(part, 32))
+			if err != nil {
+				cleanup()
+				return usecase.TrackUpload{}, func() {}, fmt.Errorf("read year")
+			}
+			s := strings.TrimSpace(string(value))
+			year, err := strconv.ParseInt(s, 10, 32)
+			if err != nil {
+				cleanup()
+				return usecase.TrackUpload{}, func() {}, fmt.Errorf("parse year")
+			}
+			trackMetadata.Year = int(year)
+		case "release_id":
+			value, err := io.ReadAll(io.LimitReader(part, 1024))
+			if err != nil {
+				cleanup()
+				return usecase.TrackUpload{}, func() {}, fmt.Errorf("read release_id")
+			}
+
+			trackMetadata.ReleaseID = strings.TrimSpace(string(value))
+		case "release_group_id":
+			value, err := io.ReadAll(io.LimitReader(part, 1024))
+			if err != nil {
+				cleanup()
+				return usecase.TrackUpload{}, func() {}, fmt.Errorf("read release_group_id")
+			}
+			trackMetadata.Title = strings.TrimSpace(string(value))
 		case "musicbrainz_id":
 			value, err := io.ReadAll(io.LimitReader(part, 1024))
 			if err != nil {
@@ -192,6 +273,10 @@ func parseTrackMultipart(
 			}
 		}
 	}
+	empty := &usecase.TrackUploadMetadata{}
+	if trackMetadata.Equal(empty) {
+		trackMetadata = nil
+	}
 
 	if musicBrainzID == "" || !fileSeen || fileSize == 0 {
 		cleanup()
@@ -209,6 +294,7 @@ func parseTrackMultipart(
 		FileName:      fileName,
 		ContentType:   contentType,
 		Size:          fileSize,
+		Metadata:      trackMetadata,
 	}, cleanup, nil
 }
 

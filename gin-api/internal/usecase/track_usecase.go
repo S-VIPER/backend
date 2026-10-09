@@ -7,6 +7,7 @@ import (
 	"io"
 	"mime"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -22,9 +23,33 @@ const (
 type TrackUpload struct {
 	MusicBrainzID string
 	Reader        io.Reader
-	FileName      string
-	ContentType   string
-	Size          int64
+
+	FileName    string
+	ContentType string
+	Size        int64
+
+	Metadata *TrackUploadMetadata
+}
+
+type TrackUploadMetadata struct {
+	Title          string
+	Artist         string
+	AlbumTitle     string
+	Score          int
+	Genre          []string
+	Year           int
+	ReleaseID      string
+	ReleaseGroupID string
+}
+
+func (tm *TrackUploadMetadata) Equal(t *TrackUploadMetadata) bool {
+	if len(tm.Genre) != len(t.Genre) {
+		return false
+	}
+	return slices.Equal(tm.Genre, t.Genre) && tm.AlbumTitle != t.AlbumTitle &&
+		tm.Artist != t.Artist && tm.ReleaseGroupID != t.ReleaseGroupID &&
+		tm.ReleaseID != t.ReleaseID && tm.Score != t.Score &&
+		tm.Title != t.Title && tm.Year != t.Year
 }
 
 type TrackContentAccess struct {
