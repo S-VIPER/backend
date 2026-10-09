@@ -197,7 +197,6 @@ paths:
         - Tracks
       operationId: getAllTracks
       summary: Get all tracks
-      security: []
       responses:
         '200':
           description: Tracks
@@ -205,6 +204,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TrackListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -215,7 +216,6 @@ paths:
       operationId: searchTrackMetadata
       summary: Search MusicBrainz recordings
       description: Searches MusicBrainz by artist and title. The client chooses a recording MBID before uploading the audio file.
-      security: []
       parameters:
         - name: artist
           in: query
@@ -298,7 +298,6 @@ paths:
       operationId: getTrackContent
       summary: Get a temporary track content URL
       description: Returns a short-lived presigned URL. The MinIO object itself remains private.
-      security: []
       responses:
         '200':
           description: Presigned track URL
@@ -322,7 +321,6 @@ paths:
         - Tracks
       operationId: getTrackByID
       summary: Get track by ID
-      security: []
       responses:
         '200':
           description: Track
@@ -408,6 +406,41 @@ paths:
           $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalServerError'
+    get:
+      tags:
+        - Playlists
+      operationId: getAllPlaylists
+      summary: Get all playlists available for the user
+      responses:
+        '200':
+          description: All playlist for that user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaylistListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+
+
+
+#  get:
+#       tags:
+#         - Tracks
+#       operationId: getAllTracks
+#       summary: Get all tracks
+#       security: []
+#       responses:
+#         '200':
+#           description: Tracks
+#           content:
+#             application/json:
+#               schema:
+#                 $ref: '#/components/schemas/TrackListResponse'
+#         '500':
+#           $ref: '#/components/responses/InternalServerError'
 
   /playlists/{playlistId}:
     parameters:
@@ -419,7 +452,6 @@ paths:
       operationId: getPlaylistByID
       summary: Get playlist by ID
       description: Returns playlist owned by the authenticated user.
-      security: []
       responses:
         '200':
           description: Playlist
@@ -967,6 +999,36 @@ components:
       properties:
         data:
           $ref: '#/components/schemas/Playlist'
+
+    PlaylistItemList:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          description: Playlist identifier
+          example: "66c8b7e2b0e9c6a8c9a2d123"
+        name:
+          type: string
+          description: Playlist name
+          minLength: 1
+          maxLength: 200
+          example: "Electro-punk for midnight"
+
+        visibility:
+          $ref: '#/components/schemas/PlaylistVisibility'
+      
+    PlaylistListResponse:
+      required:
+        - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlaylistItemList'
+
 
     MessageResponse:
       type: object
