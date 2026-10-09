@@ -244,8 +244,8 @@ func toMetadata(item recording) domain.TrackMetadata {
 	if len(item.Releases) > 0 {
 		release := item.Releases[0]
 		metadata.AlbumTitle = release.Title
-		metadata.MusicBrainzReleaseID = release.ID
-		metadata.MusicBrainzReleaseGroupID = release.ReleaseGroup.ID
+		metadata.ReleaseID = release.ID
+		metadata.ReleaseGroupID = release.ReleaseGroup.ID
 		metadata.Year = releaseYear(release.Date)
 		if release.ID != "" {
 			metadata.AlbumArtURL = fmt.Sprintf(
