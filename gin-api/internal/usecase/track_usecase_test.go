@@ -142,14 +142,14 @@ func TestTrackUseCaseUploadAndContent(t *testing.T) {
 
 	mb := fakeMusicBrainzClient{
 		metadata: domain.TrackMetadata{
-			MBID:                      "550e8400-e29b-41d4-a716-446655440000",
-			Title:                     "Test Track",
-			Artist:                    "Test Artist",
-			AlbumTitle:                "Test Album",
-			Genre:                     []string{"Electronic"},
-			Year:                      2025,
-			MusicBrainzReleaseID:      "550e8400-e29b-41d4-a716-446655440001",
-			MusicBrainzReleaseGroupID: "550e8400-e29b-41d4-a716-446655440002",
+			MBID:           "550e8400-e29b-41d4-a716-446655440000",
+			Title:          "Test Track",
+			Artist:         "Test Artist",
+			AlbumTitle:     "Test Album",
+			Genre:          []string{"Electronic"},
+			Year:           2025,
+			ReleaseID:      "550e8400-e29b-41d4-a716-446655440001",
+			ReleaseGroupID: "550e8400-e29b-41d4-a716-446655440002",
 		},
 	}
 

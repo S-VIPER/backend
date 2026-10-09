@@ -7,7 +7,6 @@ import (
 	"io"
 	"mime"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
@@ -28,28 +27,7 @@ type TrackUpload struct {
 	ContentType string
 	Size        int64
 
-	Metadata *TrackUploadMetadata
-}
-
-type TrackUploadMetadata struct {
-	Title          string
-	Artist         string
-	AlbumTitle     string
-	Score          int
-	Genre          []string
-	Year           int
-	ReleaseID      string
-	ReleaseGroupID string
-}
-
-func (tm *TrackUploadMetadata) Equal(t *TrackUploadMetadata) bool {
-	if len(tm.Genre) != len(t.Genre) {
-		return false
-	}
-	return slices.Equal(tm.Genre, t.Genre) && tm.AlbumTitle != t.AlbumTitle &&
-		tm.Artist != t.Artist && tm.ReleaseGroupID != t.ReleaseGroupID &&
-		tm.ReleaseID != t.ReleaseID && tm.Score != t.Score &&
-		tm.Title != t.Title && tm.Year != t.Year
+	Metadata *domain.TrackMetadata
 }
 
 type TrackContentAccess struct {
@@ -143,10 +121,13 @@ func (uc *TrackUseCase) UploadTrack(
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
-
-	metadata, err := uc.musicBrainz.GetRecording(ctx, mbid)
-	if err != nil {
-		return nil, err
+	metadata := input.Metadata
+	if metadata == nil {
+		var err error
+		metadata, err = uc.musicBrainz.GetRecording(ctx, mbid)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	objectKey := buildObjectKey(mbid, fileName)
@@ -169,8 +150,8 @@ func (uc *TrackUseCase) UploadTrack(
 		AlbumArtURL:               metadata.AlbumArtURL,
 		Genre:                     append([]string(nil), metadata.Genre...),
 		Year:                      metadata.Year,
-		MusicBrainzReleaseID:      metadata.MusicBrainzReleaseID,
-		MusicBrainzReleaseGroupID: metadata.MusicBrainzReleaseGroupID,
+		MusicBrainzReleaseID:      metadata.ReleaseID,
+		MusicBrainzReleaseGroupID: metadata.ReleaseGroupID,
 		ObjectKey:                 objectKey,
 		FileName:                  fileName,
 		ContentType:               contentType,

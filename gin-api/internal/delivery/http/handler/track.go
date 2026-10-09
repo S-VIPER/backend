@@ -157,7 +157,7 @@ func parseTrackMultipart(
 		fileSeen      bool
 	)
 
-	trackMetadata := &usecase.TrackUploadMetadata{}
+	trackMetadata := &domain.TrackMetadata{}
 
 	for {
 		part, nextErr := reader.NextPart()
@@ -273,7 +273,7 @@ func parseTrackMultipart(
 			}
 		}
 	}
-	empty := &usecase.TrackUploadMetadata{}
+	empty := &domain.TrackMetadata{}
 	if trackMetadata.Equal(empty) {
 		trackMetadata = nil
 	}
@@ -282,6 +282,7 @@ func parseTrackMultipart(
 		cleanup()
 		return usecase.TrackUpload{}, func() {}, domain.ErrInvalidTrack
 	}
+	trackMetadata.MBID = musicBrainzID
 
 	if _, err := tempFile.Seek(0, io.SeekStart); err != nil {
 		cleanup()
@@ -294,7 +295,8 @@ func parseTrackMultipart(
 		FileName:      fileName,
 		ContentType:   contentType,
 		Size:          fileSize,
-		Metadata:      trackMetadata,
+
+		Metadata: trackMetadata,
 	}, cleanup, nil
 }
 
