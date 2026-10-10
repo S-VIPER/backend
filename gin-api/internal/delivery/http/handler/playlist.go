@@ -41,6 +41,33 @@ func (h *PlaylistHandler) CreatePlaylist(
 	}, nil
 }
 
+func (h *PlaylistHandler) GetAllPlaylists(
+	ctx context.Context,
+	request api.GetAllPlaylistsRequestObject,
+) (api.GetAllPlaylistsResponseObject, error) {
+	var viewerID *uuid.UUID
+	if id, ok := middleware.UserID(ctx); ok {
+		viewerID = &id
+	}
+
+	playlistList, err := h.useCase.GetPlaylistList(ctx, viewerID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]api.PlaylistItemList, 0, len(playlistList))
+	for _, p := range playlistList {
+		result = append(result, api.PlaylistItemList{
+			Id:         p.ID,
+			Name:       p.Name,
+			Visibility: (*api.PlaylistVisibility)(&p.Visibility),
+		})
+	}
+
+	return api.GetAllPlaylists200JSONResponse{
+		Data: result,
+	}, nil
+}
+
 func (h *PlaylistHandler) GetPlaylistByID(
 	ctx context.Context,
 	request api.GetPlaylistByIDRequestObject,

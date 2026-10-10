@@ -30,6 +30,7 @@ type TrackRepositoryInterface interface {
 }
 
 type PlaylistRepositoryInterface interface {
+	GetAllPlaylistForUser(ctx context.Context, userID uuid.UUID) ([]*domain.PlaylistListItem, error)
 	Create(ctx context.Context, playlist *domain.Playlist) error
 	GetByID(ctx context.Context, id string) (*domain.Playlist, error)
 	Update(ctx context.Context, playlist *domain.Playlist) error

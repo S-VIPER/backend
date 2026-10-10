@@ -47,6 +47,18 @@ func (uc *PlaylistUseCase) CreatePlaylist(
 	return uc.playlistRepo.Create(ctx, playlist)
 }
 
+func (uc *PlaylistUseCase) GetPlaylistList(
+	ctx context.Context,
+	viewerID *uuid.UUID,
+) ([]*domain.PlaylistListItem, error) {
+
+	playlists, err := uc.playlistRepo.GetAllPlaylistForUser(ctx, *viewerID)
+	if err != nil {
+		return nil, err
+	}
+	return playlists, nil
+}
+
 func (uc *PlaylistUseCase) GetPlaylistByID(
 	ctx context.Context,
 	viewerID *uuid.UUID,

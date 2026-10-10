@@ -16,3 +16,10 @@ type Playlist struct {
 	Tracks     []string
 	Visibility PlaylistVisibility
 }
+
+type PlaylistListItem struct {
+	ID         string
+	OwnerID    uuid.UUID
+	Name       string
+	Visibility PlaylistVisibility
+}

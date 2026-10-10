@@ -62,6 +62,19 @@ func (r *Playlist) Create(ctx context.Context, playlist *domain.Playlist) error 
 	return nil
 }
 
+func (r *Playlist) GetAllPlaylistForUser(ctx context.Context, userID uuid.UUID) ([]*domain.PlaylistListItem, error) {
+	rows, err := r.queries.GetPlaylistListForUser(ctx, uuidToPGUUID(userID))
+	if err != nil {
+		return nil, fmt.Errorf("get list playlists for user %s: %w", userID.String(), err)
+	}
+	result := make([]*domain.PlaylistListItem, 0)
+	for _, row := range rows {
+		p := toDomainPlaylistListItem(row)
+		result = append(result, &p)
+	}
+	return result, nil
+}
+
 func (r *Playlist) GetByID(ctx context.Context, id string) (*domain.Playlist, error) {
 	playlistID, err := uuid.Parse(id)
 	if err != nil {
@@ -154,6 +167,15 @@ func toDomainPlaylist(row db.Playlist) domain.Playlist {
 		OwnerID:    uuid.UUID(row.OwnerID.Bytes),
 		Name:       row.Name,
 		Tracks:     row.Tracks,
+		Visibility: domain.PlaylistVisibility(row.Visibility),
+	}
+}
+
+func toDomainPlaylistListItem(row db.GetPlaylistListForUserRow) domain.PlaylistListItem {
+	return domain.PlaylistListItem{
+		ID:         uuid.UUID(row.ID.Bytes).String(),
+		OwnerID:    uuid.UUID(row.OwnerID.Bytes),
+		Name:       row.Name,
 		Visibility: domain.PlaylistVisibility(row.Visibility),
 	}
 }
