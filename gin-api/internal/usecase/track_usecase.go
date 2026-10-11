@@ -148,7 +148,7 @@ func (uc *TrackUseCase) UploadTrack(
 		Artist:                    metadata.Artist,
 		AlbumTitle:                metadata.AlbumTitle,
 		AlbumArtURL:               metadata.AlbumArtURL,
-		Genre:                     append([]string(nil), metadata.Genre...),
+		Genre:                     append([]string{}, metadata.Genre...),
 		Year:                      metadata.Year,
 		MusicBrainzReleaseID:      metadata.ReleaseID,
 		MusicBrainzReleaseGroupID: metadata.ReleaseGroupID,

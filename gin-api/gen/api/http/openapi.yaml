@@ -423,25 +423,6 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-
-
-
-#  get:
-#       tags:
-#         - Tracks
-#       operationId: getAllTracks
-#       summary: Get all tracks
-#       security: []
-#       responses:
-#         '200':
-#           description: Tracks
-#           content:
-#             application/json:
-#               schema:
-#                 $ref: '#/components/schemas/TrackListResponse'
-#         '500':
-#           $ref: '#/components/responses/InternalServerError'
-
   /playlists/{playlistId}:
     parameters:
       - $ref: '#/components/parameters/PlaylistId'
@@ -801,6 +782,9 @@ components:
           type: string
           minLength: 1
           maxLength: 300
+        album_art_url:
+          type: string
+          format: url
         score:
           type: integer
           format: int32

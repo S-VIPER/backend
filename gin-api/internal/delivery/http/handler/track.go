@@ -191,6 +191,13 @@ func parseTrackMultipart(
 				return usecase.TrackUpload{}, func() {}, fmt.Errorf("read album_title")
 			}
 			trackMetadata.AlbumTitle = strings.TrimSpace(string(value))
+		case "album_art_url":
+			value, err := io.ReadAll(io.LimitReader(part, 3000))
+			if err != nil {
+				cleanup()
+				return usecase.TrackUpload{}, func() {}, fmt.Errorf("read album art url")
+			}
+			trackMetadata.AlbumArtURL = strings.TrimSpace(string(value))
 		case "score":
 			value, err := io.ReadAll(io.LimitReader(part, 16))
 			if err != nil {
@@ -210,9 +217,12 @@ func parseTrackMultipart(
 			value, err := io.ReadAll(io.LimitReader(part, 256))
 			if err != nil {
 				cleanup()
-				return usecase.TrackUpload{}, func() {}, fmt.Errorf("read title")
+				return usecase.TrackUpload{}, func() {}, fmt.Errorf("read genre: %w", err)
 			}
-			trackMetadata.Genre = append(trackMetadata.Genre, strings.TrimSpace(string(value)))
+			genre := strings.TrimSpace(string(value))
+			if genre != "" {
+				trackMetadata.Genre = append(trackMetadata.Genre, genre)
+			}
 		case "year":
 			value, err := io.ReadAll(io.LimitReader(part, 32))
 			if err != nil {
@@ -240,7 +250,7 @@ func parseTrackMultipart(
 				cleanup()
 				return usecase.TrackUpload{}, func() {}, fmt.Errorf("read release_group_id")
 			}
-			trackMetadata.Title = strings.TrimSpace(string(value))
+			trackMetadata.ReleaseGroupID = strings.TrimSpace(string(value))
 		case "musicbrainz_id":
 			value, err := io.ReadAll(io.LimitReader(part, 1024))
 			if err != nil {
@@ -276,13 +286,14 @@ func parseTrackMultipart(
 	empty := &domain.TrackMetadata{}
 	if trackMetadata.Equal(empty) {
 		trackMetadata = nil
+	} else {
+		trackMetadata.MBID = musicBrainzID
 	}
 
 	if musicBrainzID == "" || !fileSeen || fileSize == 0 {
 		cleanup()
 		return usecase.TrackUpload{}, func() {}, domain.ErrInvalidTrack
 	}
-	trackMetadata.MBID = musicBrainzID
 
 	if _, err := tempFile.Seek(0, io.SeekStart); err != nil {
 		cleanup()
