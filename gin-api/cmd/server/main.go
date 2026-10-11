@@ -148,7 +148,18 @@ func main() {
 	router := gin.Default()
 	router.MaxMultipartMemory = 32 << 20
 
-	authMiddleware := middleware.NewJWTMiddleware(accessTokenService)
+	spec, err := api.GetSpec()
+	if err != nil {
+		log.Fatalf("failed to load OpenAPI specification: %v", err)
+	}
+
+	authMiddleware, err := middleware.NewJWTMiddleware(
+		accessTokenService,
+		spec,
+	)
+	if err != nil {
+		log.Fatalf("failed to configure JWT middleware: %v", err)
+	}
 
 	strictHandler := api.NewStrictHandlerWithOptions(
 		httpHandler,

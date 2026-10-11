@@ -2,25 +2,101 @@ package middleware
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/S-VIPER/backend/gin-api/internal/delivery/http/api"
 	"github.com/S-VIPER/backend/gin-api/internal/domain"
 	"github.com/S-VIPER/backend/gin-api/internal/service"
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
+
+const bearerAuthScheme = "bearerAuth"
 
 type contextKey string
 
 const userIDContextKey contextKey = "userID"
 
+type securityPolicy uint8
+
+const (
+	policyPublic securityPolicy = iota
+	policyRequired
+	policyOptional
+)
+
 type JWTMiddleware struct {
 	accessTokenService service.AccessTokenService
+	policies           map[string]securityPolicy
 }
 
-func NewJWTMiddleware(accessTokenService service.AccessTokenService) *JWTMiddleware {
-	return &JWTMiddleware{accessTokenService: accessTokenService}
+func NewJWTMiddleware(
+	accessTokenService service.AccessTokenService,
+	spec *openapi3.T,
+) (*JWTMiddleware, error) {
+	if spec == nil {
+		return nil, errors.New("OpenAPI specification is nil")
+	}
+
+	if spec.Paths == nil {
+		return nil, errors.New("OpenAPI paths are not defined")
+	}
+
+	if len(spec.Security) == 0 {
+		return nil, errors.New(
+			"global OpenAPI security is not defined or empty",
+		)
+	}
+
+	policies := make(map[string]securityPolicy)
+
+	for _, pathItem := range spec.Paths.Map() {
+		for _, operation := range pathItem.Operations() {
+			if operation == nil {
+				continue
+			}
+
+			if operation.OperationID == "" {
+				return nil, errors.New(
+					"OpenAPI operation has no operationId",
+				)
+			}
+
+			if _, exists := policies[operation.OperationID]; exists {
+				return nil, fmt.Errorf(
+					"duplicate OpenAPI operationId %q",
+					operation.OperationID,
+				)
+			}
+
+			requirements := spec.Security
+
+			if operation.Security != nil {
+				requirements = *operation.Security
+			}
+
+			policy, err := policyFromSecurity(requirements)
+
+			if err != nil {
+				return nil, fmt.Errorf(
+					"operation %q: %w",
+					operation.OperationID,
+					err,
+				)
+			}
+
+			policies[operation.OperationID] = policy
+		}
+	}
+
+	return &JWTMiddleware{
+		accessTokenService: accessTokenService,
+		policies:           policies,
+	}, nil
 }
 
 func (m *JWTMiddleware) StrictMiddleware(
@@ -28,34 +104,92 @@ func (m *JWTMiddleware) StrictMiddleware(
 	operationID string,
 ) api.StrictHandlerFunc {
 	return func(c *gin.Context, request any) (any, error) {
-		if operationID == "GetPlaylistByID" {
-			if err := m.authenticateOptional(c); err != nil {
-				return nil, err
-			}
-		} else if requiresAuthentication(operationID) {
+		policy, exists := m.policies[operationID]
+		if !exists {
+			return nil, fmt.Errorf(
+				"security policy not found for operation %q",
+				operationID,
+			)
+		}
+
+		switch policy {
+		case policyPublic:
+
+		case policyRequired:
 			if err := m.authenticate(c); err != nil {
 				return nil, err
 			}
+
+		case policyOptional:
+			if err := m.authenticateOptional(c); err != nil {
+				return nil, err
+			}
+
+		default:
+			return nil, fmt.Errorf(
+				"unknown security policy for operation %q",
+				operationID,
+			)
 		}
 
 		return next(c, request)
 	}
 }
 
-func requiresAuthentication(operationID string) bool {
-	switch operationID {
-	case "CreateTrack",
-		"UpdateTrack",
-		"DeleteTrack",
-		"CreatePlaylist",
-		"UpdatePlaylist",
-		"DeletePlaylist",
-		"AddTrackToPlaylist",
-		"RemoveTrackFromPlaylist":
-		return true
-	default:
-		return false
+func (m *JWTMiddleware) RequireAuthentication() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if err := m.authenticate(c); err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": gin.H{
+					"code":    "unauthorized",
+					"message": "authentication required",
+				},
+			})
+			return
+		}
+
+		c.Next()
 	}
+}
+
+func policyFromSecurity(
+	requirements openapi3.SecurityRequirements,
+) (securityPolicy, error) {
+	if len(requirements) == 0 {
+		return policyPublic, nil
+	}
+
+	hasBearer := false
+	allowsAnonymous := false
+
+	for _, requirement := range requirements {
+		if len(requirement) == 0 {
+			allowsAnonymous = true
+			continue
+		}
+
+		for schemeName := range requirement {
+			if schemeName != bearerAuthScheme {
+				return policyPublic, fmt.Errorf(
+					"unsupported security scheme %q; only %q is supported",
+					schemeName,
+					bearerAuthScheme,
+				)
+			}
+
+			hasBearer = true
+		}
+	}
+
+	if !hasBearer {
+		return policyPublic, nil
+	}
+
+	if allowsAnonymous {
+		return policyOptional, nil
+	}
+
+	return policyRequired, nil
 }
 
 func (m *JWTMiddleware) authenticate(c *gin.Context) error {
@@ -100,13 +234,8 @@ func bearerToken(header string) (string, bool) {
 }
 
 func setUserID(c *gin.Context, id uuid.UUID) {
-	// The strict OpenAPI handler passes *gin.Context to handlers as
-	// context.Context. Gin's Value() does not necessarily delegate to
-	// Request.Context(), so keep the value in Gin's context as well.
 	c.Set(string(userIDContextKey), id)
 
-	// Also keep it in the standard request context for code that receives
-	// c.Request.Context() downstream.
 	ctx := context.WithValue(
 		c.Request.Context(),
 		userIDContextKey,
@@ -116,7 +245,6 @@ func setUserID(c *gin.Context, id uuid.UUID) {
 }
 
 func UserID(ctx context.Context) (uuid.UUID, bool) {
-	// Strict handlers receive *gin.Context as context.Context.
 	if c, ok := ctx.(*gin.Context); ok {
 		if value, exists := c.Get(string(userIDContextKey)); exists {
 			id, ok := value.(uuid.UUID)
@@ -126,7 +254,6 @@ func UserID(ctx context.Context) (uuid.UUID, bool) {
 		}
 	}
 
-	// Fallback for ordinary context.Context callers.
 	userID, ok := ctx.Value(userIDContextKey).(uuid.UUID)
 	return userID, ok
 }
